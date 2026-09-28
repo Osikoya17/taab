@@ -19,8 +19,14 @@ import { Text } from '@/components/ui/Text';
 import { useAuthSession } from '@/features/auth/auth-context';
 import { categoryMeta } from '@/features/expenses/categories';
 import { useDeleteExpense, useExpense } from '@/features/expenses/queries';
+import { useReceiptImage } from '@/features/expenses/use-receipt-image';
+import { useDisplayCurrency } from '@/features/currency/display';
+import { formatRate } from '@/features/currency/rates';
+import { colors } from '@/constants/theme';
 import { basisPointsToPercentString } from '@/features/expenses/split';
 import { haptics } from '@/lib/haptics';
+import { captureEvent } from '@/lib/posthog';
+import { isServiceError } from '@/services/api/errors';
 import { toast } from '@/store/toast.store';
 import type { Group } from '@/types/models';
 import { dayLabel } from '@/utils/dates';
@@ -58,6 +64,8 @@ export default function ExpenseDetailScreen() {
   const query = useExpense(id);
   const remove = useDeleteExpense();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const receiptImage = useReceiptImage(query.data?.expense.receiptUrl);
+  const { format } = useDisplayCurrency();
 
   if (query.isError && !query.data) {
     return (
@@ -97,12 +105,20 @@ export default function ExpenseDetailScreen() {
   async function confirmRemove() {
     try {
       await remove.mutateAsync(expense.id);
+      captureEvent('expense_deleted', {
+        ...(expense.category ? { category: expense.category } : {}),
+        currency: expense.currency,
+        split_method: expense.splitMethod,
+        participant_count: expense.splitBetween.length,
+      });
       haptics.success();
       setConfirmDelete(false);
       toast.show(`${expense.title} deleted`);
       goBack();
-    } catch {
-      toast.error('Couldn’t delete that expense', 'Check your connection and try again.');
+    } catch (error) {
+      toast.error('Couldn’t delete that expense', isServiceError(error) && error.code === 'history_locked'
+        ? 'This would change the balance of someone who has settled up and left. Ask them to rejoin first.'
+        : 'Check your connection and try again.');
     }
   }
 
@@ -139,6 +155,11 @@ export default function ExpenseDetailScreen() {
         <Text variant="body" tone="muted" className="mt-1">
           {dayLabel(expense.date)} • {group.name}
         </Text>
+        {expense.original ? (
+          <Text variant="caption" tone="faint" className="mt-1 text-center">
+            Entered as {formatMoney(expense.original.amount, expense.original.currency)} · {formatRate(expense.original.rate, expense.original.currency, expense.currency)}
+          </Text>
+        ) : null}
         <View className="mt-3 flex-row items-center gap-2">
           <View className={status === 'settled' ? 'rounded-full bg-positive-soft px-3 py-1' : 'rounded-full bg-sunken px-3 py-1'}>
             <Text variant="micro" tone={status === 'settled' ? 'positive' : 'muted'}>
@@ -147,7 +168,7 @@ export default function ExpenseDetailScreen() {
           </View>
           {myShare > 0 ? (
             <Text variant="caption" tone="muted">
-              Your share {formatMoney(myShare, expense.currency)}
+              Your share {format(myShare, expense.currency)}
             </Text>
           ) : null}
         </View>
@@ -198,7 +219,7 @@ export default function ExpenseDetailScreen() {
           <Text variant="label" tone="muted" className="mb-2 mt-6">
             Receipt
           </Text>
-          <Image source={{ uri: expense.receiptUrl }} style={{ width: '100%', height: 280, borderRadius: 22 }} contentFit="cover" accessibilityLabel="Receipt photo" />
+          <Image source={receiptImage ? { uri: receiptImage } : undefined} style={{ width: '100%', height: 280, borderRadius: 22, backgroundColor: colors.sunken }} contentFit="cover" accessibilityLabel="Receipt photo" />
         </>
       ) : null}
 

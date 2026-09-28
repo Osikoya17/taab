@@ -1,5 +1,4 @@
 import Constants from 'expo-constants';
-import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
 import { notificationsService, NOTIFICATION_CATEGORY_LABELS } from '@/services/notifications.service';
@@ -43,9 +42,13 @@ async function ensureAndroidChannels() {
 /** 'granted' | 'denied' | 'undetermined', or 'unsupported' where push can't run (Android Expo Go). */
 export async function getPushPermission(): Promise<string> {
   const Notifications = getNotifications();
-  if (!Notifications) return 'unsupported';
+  if (!Notifications || !getProjectId()) return 'unsupported';
   const { status } = await Notifications.getPermissionsAsync();
   return status;
+}
+
+function getProjectId(): string | undefined {
+  return Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
 }
 
 /**
@@ -54,22 +57,19 @@ export async function getPushPermission(): Promise<string> {
  */
 export async function enablePushNotifications(): Promise<boolean> {
   const Notifications = getNotifications();
-  if (!Notifications) return false;
+  const projectId = getProjectId();
+  if (!Notifications || !projectId) return false;
   await ensureAndroidChannels();
 
   let { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') status = (await Notifications.requestPermissionsAsync()).status;
   if (status !== 'granted') return false;
 
-  // Remote push needs a real device and a development/production build.
-  if (!Device.isDevice) return true;
-  const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  if (!projectId) return true;
   try {
     const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
     await notificationsService.registerPushToken(data);
+    return true;
   } catch {
-    // Token registration can fail on simulators or without network; the inbox still works.
+    return false;
   }
-  return true;
 }

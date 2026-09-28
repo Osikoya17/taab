@@ -2,6 +2,7 @@ import { Check } from 'lucide-react-native';
 import { View } from 'react-native';
 
 import { colors } from '@/constants/theme';
+import { useDisplayCurrency } from '@/features/currency/display';
 import type { CurrencyCode, MinorUnits } from '@/types/models';
 import { formatMoney } from '@/utils/money';
 import { cx } from '@/utils/cx';
@@ -22,15 +23,18 @@ export type BalanceBadgeProps = {
  * the meaning so colour is never the only signal. When you're square but
  * others in the group aren't, say so rather than claiming the group is settled.
  */
-export function balanceCopy(amount: MinorUnits, currency: CurrencyCode, groupSettled = true) {
-  if (amount > 0) return `You’re owed ${formatMoney(amount, currency)}`;
-  if (amount < 0) return `You owe ${formatMoney(-amount, currency)}`;
+export function balanceCopy(amount: MinorUnits, currency: CurrencyCode, groupSettled = true, format: MoneyFormatter = formatMoney) {
+  if (amount > 0) return `You’re owed ${format(amount, currency)}`;
+  if (amount < 0) return `You owe ${format(-amount, currency)}`;
   return groupSettled ? 'All settled' : 'You’re settled up';
 }
 
+type MoneyFormatter = (amount: MinorUnits, currency: CurrencyCode) => string;
+
 export function BalanceBadge({ amount, currency, appearance = 'inline', groupSettled = true }: BalanceBadgeProps) {
+  const { format } = useDisplayCurrency();
   const tone = amount > 0 ? 'positive' : amount < 0 ? 'negative' : 'muted';
-  const copy = balanceCopy(amount, currency, groupSettled);
+  const copy = balanceCopy(amount, currency, groupSettled, format);
 
   if (appearance === 'inline') {
     return (

@@ -112,8 +112,6 @@ export default function SignUpScreen() {
         )}
       />
       <Button label="Continue" onPress={onSubmit} loading={formState.isSubmitting} />
-      {/* Clerk renders its bot-protection widget here on web; native skips it. */}
-      <View nativeID="clerk-captcha" />
     </AuthScaffold>
   );
 }

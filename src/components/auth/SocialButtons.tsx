@@ -5,8 +5,9 @@ import Svg, { Path } from 'react-native-svg';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Text } from '@/components/ui/Text';
 import { colors } from '@/constants/theme';
-import { useAuthActions } from '@/features/auth/auth-context';
+import { useAuthActions, useAuthSession } from '@/features/auth/auth-context';
 import type { OAuthProvider } from '@/features/auth/types';
+import { env } from '@/lib/env';
 import { toast } from '@/store/toast.store';
 
 function GoogleMark() {
@@ -35,7 +36,10 @@ function AppleMark({ color }: { color: string }) {
 export function SocialButtons() {
   const actions = useAuthActions();
   const [pending, setPending] = useState<OAuthProvider | null>(null);
-  const providers: OAuthProvider[] = Platform.OS === 'ios' ? ['apple', 'google'] : ['google'];
+  const { mode } = useAuthSession();
+  // Apple is iOS-only and must be enabled in Clerk first (demo mode fakes it).
+  const showApple = Platform.OS === 'ios' && (mode === 'demo' || env.appleSignIn);
+  const providers: OAuthProvider[] = showApple ? ['apple', 'google'] : ['google'];
 
   async function start(provider: OAuthProvider) {
     setPending(provider);

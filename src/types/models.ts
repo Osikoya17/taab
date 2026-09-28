@@ -80,6 +80,14 @@ export type ExpenseCategory =
   | 'subscriptions'
   | 'other';
 
+/** What someone typed when they entered an expense in a currency other than the taab's. */
+export type ForeignAmount = {
+  amount: MinorUnits;
+  currency: CurrencyCode;
+  /** Units of the taab's currency per one unit of `currency`, at entry time. */
+  rate: number;
+};
+
 export type Expense = {
   id: string;
   groupId: string;
@@ -92,6 +100,8 @@ export type Expense = {
   category?: ExpenseCategory;
   notes?: string;
   receiptUrl?: string;
+  /** Set when it was entered in another currency; `amount` is the converted value. */
+  original?: ForeignAmount;
   /** When the expense happened (user-editable). */
   date: ISODateString;
   recurringId?: string;

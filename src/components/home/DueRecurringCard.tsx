@@ -9,11 +9,12 @@ import { useResolveDue } from '@/features/recurring/queries';
 import { haptics } from '@/lib/haptics';
 import { toast } from '@/store/toast.store';
 import type { RecurringExpense } from '@/types/models';
-import { formatMoney } from '@/utils/money';
+import { useDisplayCurrency } from '@/features/currency/display';
 
 /** "Netflix is due — add it?" for recurring rules that ask first. */
 export function DueRecurringCard({ rule }: { rule: RecurringExpense }) {
   const resolve = useResolveDue();
+  const { format } = useDisplayCurrency();
   const busy = resolve.isPending;
 
   return (
@@ -25,7 +26,7 @@ export function DueRecurringCard({ rule }: { rule: RecurringExpense }) {
         <View className="flex-1">
           <Text variant="bodyStrong">{rule.title} is due</Text>
           <Text variant="caption" tone="muted">
-            {formatMoney(rule.amount, rule.currency)} · repeats {rule.frequency}
+            {format(rule.amount, rule.currency)} · repeats {rule.frequency}
           </Text>
         </View>
       </View>

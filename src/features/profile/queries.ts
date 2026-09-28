@@ -6,7 +6,7 @@ import { usersService, type ProfilePatch, type SetupInput } from '@/services/use
 
 export function useProfile() {
   const { isSignedIn } = useAuthSession();
-  return useQuery({ queryKey: queryKeys.profile, queryFn: usersService.getProfile, enabled: isSignedIn });
+  return useQuery({ queryKey: queryKeys.profile, queryFn: () => usersService.getProfile(), enabled: isSignedIn });
 }
 
 export function useUpdateProfile() {

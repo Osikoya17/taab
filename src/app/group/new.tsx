@@ -19,6 +19,7 @@ import { useCreateGroup } from '@/features/groups/queries';
 import { useProfile } from '@/features/profile/queries';
 import { suggestedGroupName } from '@/features/profile/use-cases';
 import { haptics } from '@/lib/haptics';
+import { captureEvent } from '@/lib/posthog';
 import { isServiceError } from '@/services/api/errors';
 import { toast } from '@/store/toast.store';
 import { useGoBack } from '@/hooks/use-go-back';
@@ -57,6 +58,11 @@ export default function CreateGroupScreen() {
       const group = await create.mutateAsync({
         ...values,
         invites: invites.map(({ key: _key, label: _label, detail: _detail, ...invite }) => invite),
+      });
+      captureEvent('group_created', {
+        group_type: values.type,
+        currency: values.currency,
+        invited_member_count: invites.length,
       });
       haptics.success();
       toast.success(`${group.name} is ready`, invites.length ? 'We’ve let everyone know.' : 'Invite people any time.');

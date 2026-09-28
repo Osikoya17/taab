@@ -13,6 +13,7 @@ import { Screen } from '@/components/ui/Screen';
 import { BalanceSkeleton } from '@/components/ui/Skeleton';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
+import { useDisplayCurrency } from '@/features/currency/display';
 import { useGroup } from '@/features/groups/queries';
 import { useReminderStatus, useSendReminder } from '@/features/settlements/queries';
 import { haptics } from '@/lib/haptics';
@@ -28,6 +29,7 @@ export default function ReminderScreen() {
   const group = useGroup(groupId);
   const status = useReminderStatus(groupId, userId);
   const send = useSendReminder();
+  const { format } = useDisplayCurrency();
 
   const detail = group.data;
   const member = detail?.group.members.find((m) => m.userId === userId);
@@ -104,7 +106,7 @@ export default function ReminderScreen() {
                     {r.message}
                   </Text>
                   <Text variant="caption" tone="faint" className="mt-1">
-                    {relativeTime(r.createdAt)} · {formatMoney(r.amount, r.currency)}
+                    {relativeTime(r.createdAt)} · {format(r.amount, r.currency)}
                   </Text>
                 </View>
               </View>

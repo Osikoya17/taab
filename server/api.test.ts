@@ -6,12 +6,13 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
-import { createApi } from './api';
-import { openDatabase } from './storage';
+import { createApi, processDeletions, processRecurring } from './api';
+import { createReceiptStore, openDatabase } from './storage';
 import { ServiceError } from '../src/services/api/errors';
 import { read, write } from '../src/services/mock/db';
 import type { Group } from '../src/types/models';
 import { deliverPush } from './push';
+import { runWorkerCycle, startWorker } from './worker';
 
 test('shared-data API validates, isolates accounts, and persists the ledger', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'taab-test-'));
@@ -19,6 +20,7 @@ test('shared-data API validates, isolates accounts, and persists the ledger', as
   let database = openDatabase(filename);
   const server = createApi({
     allowedOrigins: ['http://localhost:8081'],
+    receipts: createReceiptStore(database),
     authenticate: async (request) => {
       const userId = request.headers.authorization?.replace('Bearer ', '');
       if (!userId || !['alice', 'bob', 'eve'].includes(userId)) throw new ServiceError('forbidden');
@@ -59,8 +61,39 @@ test('shared-data API validates, isolates accounts, and persists the ledger', as
       assert.equal((await rpc('alice', 'expenses/createExpense', [input, null])).status, 200);
       assert.equal((await rpc('alice', 'settlements/recordSettlement', [{ groupId: group.id, fromUserId: group.members[1].userId, toUserId: 'alice', amount: 500, method: 'in_app' }])).status, 422);
     });
+    await t.test('receipt photos are kept out of the ledger and shown only to members', async () => {
+      const png = `data:image/png;base64,${Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]).toString('base64')}`;
+      const input = { groupId: group.id, title: 'Receipt test', amount: 1000, paidBy: [{ userId: 'alice', amount: 1000 }], splitBetween: [{ userId: 'alice', amount: 1000 }], splitMethod: 'equal', date: new Date().toISOString(), receiptUrl: png };
+      assert.equal((await rpc('eve', 'expenses/createExpense', [input, null])).status, 403, 'non-members cannot store photos');
+      const created = await rpc('alice', 'expenses/createExpense', [input, null]);
+      assert.equal(created.status, 200);
+      const ref: string = created.data.receiptUrl;
+      assert.match(ref, /^\/receipts\/[0-9a-f-]{36}$/);
+      assert.equal(await read((db) => JSON.stringify(db).includes('base64')), false, 'the photo is not in the ledger');
+      const fetchReceipt = (user: string) => fetch(`${base}${ref}`, { headers: { Authorization: `Bearer ${user}` } });
+      const own = await fetchReceipt('alice');
+      assert.equal(own.status, 200);
+      assert.equal((await own.json()).uri, png);
+      assert.equal((await fetchReceipt('eve')).status, 404);
+      assert.equal((await rpc('alice', 'expenses/updateExpense', [created.data.id, { ...input, title: 'Receipt kept', receiptUrl: ref }])).status, 200, 'edits keep the stored photo');
+      assert.equal((await rpc('alice', 'expenses/createExpense', [{ ...input, receiptUrl: ref }, null])).status, 422, 'another expense cannot borrow it');
+    });
+    await t.test('expenses entered in another currency keep what was typed until the amount changes', async () => {
+      const naira = (amount: number) => ({ groupId: group.id, title: 'Airport taxi', amount, paidBy: [{ userId: 'alice', amount }], splitBetween: [{ userId: 'alice', amount }], splitMethod: 'equal', date: new Date().toISOString() });
+      const original = { amount: 1000, currency: 'USD', rate: 1327.301923 };
+      const created = await rpc('alice', 'expenses/createExpense', [{ ...naira(1_327_302), original }, null]);
+      assert.equal(created.status, 200);
+      assert.deepEqual((await rpc('alice', 'expenses/getExpense', [created.data.id])).data.expense.original, original);
+      assert.equal((await rpc('alice', 'expenses/createExpense', [{ ...naira(1000), original: { ...original, rate: -1 } }, null])).status, 422);
+      assert.equal((await rpc('alice', 'expenses/updateExpense', [created.data.id, naira(1_000_000)])).status, 200);
+      assert.equal((await rpc('alice', 'expenses/getExpense', [created.data.id])).data.expense.original, undefined, 'a changed amount drops the stale original');
+    });
     await t.test('join tokens preserve the invited person’s existing expense shares', async () => {
       await rpc('bob', 'users/completeSetup', [{ name: 'Bob', useCase: 'friends', currency: 'NGN', includeSampleTaabs: false }]);
+      const placeholderId = group.members[1].userId;
+      await write((db) => {
+        db.activity.push({ id: 'placeholder_event', type: 'payment_recorded', groupId: group.id, groupName: group.name, actorId: 'alice', actorName: 'Alice', targetUserId: placeholderId, targetName: 'bob', amount: 100, currency: 'NGN', createdAt: new Date().toISOString() });
+      });
       const invite = await rpc('alice', 'groups/getInviteLink', [group.id]);
       const token = String(invite.data).split('/').at(-1)!;
       assert.equal((await rpc('bob', 'groups/joinGroup', ['invalid'])).status, 404);
@@ -68,9 +101,22 @@ test('shared-data API validates, isolates accounts, and persists the ledger', as
       assert.equal(joined.status, 200);
       assert.equal(joined.data.members.length, 2);
       assert.equal((await rpc('bob', 'groups/getGroup', [group.id])).data.myBalance, -500);
+      assert.equal(await read((db) => db.activity.find((e) => e.id === 'placeholder_event')?.targetUserId), 'bob', 'past activity moves to the joined account');
       assert.equal((await rpc('bob', 'groups/joinGroup', [token])).data.members.length, 2);
       await write((db) => { db.inviteLinks[token].expiresAt = new Date(0).toISOString(); });
       assert.equal((await rpc('eve', 'groups/joinGroup', [token])).status, 404);
+    });
+    await t.test('search and direct adds only reach people you share a taab with', async () => {
+      await rpc('eve', 'users/completeSetup', [{ name: 'Eve', useCase: 'friends', currency: 'NGN', includeSampleTaabs: false }]);
+      assert.deepEqual((await rpc('alice', 'groups/searchPeople', ['eve'])).data, [], 'strangers are not searchable');
+      assert.deepEqual((await rpc('alice', 'groups/searchPeople', ['bob'])).data.map((p: { userId: string }) => p.userId), ['bob']);
+      assert.equal((await rpc('alice', 'groups/inviteMembers', [group.id, [{ kind: 'user', userId: 'eve' }]])).status, 404);
+      const invited = await rpc('alice', 'groups/inviteMembers', [group.id, [{ kind: 'email', email: 'eve@example.com' }]]);
+      assert.equal(invited.status, 200);
+      const pending = invited.data.members.find((m: { email?: string }) => m.email === 'eve@example.com');
+      assert.equal(pending.status, 'invited', 'an existing account is only invited, not added');
+      assert.notEqual(pending.userId, 'eve');
+      assert.equal((await rpc('eve', 'groups/getGroup', [group.id])).status, 403);
     });
     await t.test('concurrent requests keep identities separate', async () => {
       const responses = await Promise.all(Array.from({ length: 12 }, (_, i) => rpc(i % 2 ? 'alice' : 'bob', 'users/getProfile')));
@@ -82,6 +128,25 @@ test('shared-data API validates, isolates accounts, and persists the ledger', as
       assert.equal((await rpc('alice', 'reminders/sendReminder', [input])).status, 429);
       assert.ok((await rpc('bob', 'notifications/list')).data.some((n: { category: string }) => n.category === 'reminder'));
       assert.equal((await rpc('bob', 'notifications/markAllRead')).status, 200);
+    });
+    await t.test('leaving stops related recurring bills and protects settled history', async () => {
+      await write((db) => {
+        const expense = db.expenses[0];
+        db.recurring.push({ ...expense, id: 'leaver_rule', frequency: 'monthly', autoCreate: true, nextDate: '2099-01-01T00:00:00.000Z' });
+      });
+      assert.equal((await rpc('bob', 'settlements/recordSettlement', [{ groupId: group.id, fromUserId: 'bob', toUserId: 'alice', amount: 500, method: 'cash' }])).status, 200);
+      assert.equal((await rpc('bob', 'groups/leaveGroup', [group.id])).status, 200);
+      assert.equal(await read((db) => db.recurring.some((r) => r.id === 'leaver_rule')), false);
+      const original = await read((db) => db.expenses[0]);
+      const deletion = await rpc('alice', 'expenses/deleteExpense', [original.id]);
+      assert.equal(deletion.status, 409);
+      assert.equal(deletion.data.code, 'history_locked');
+      const revised = { groupId: group.id, title: 'Revised', amount: 1000, date: original.date, splitMethod: 'equal', paidBy: [{ userId: 'alice', amount: 1000 }], splitBetween: [{ userId: 'alice', amount: 1000 }] };
+      assert.equal((await rpc('alice', 'expenses/updateExpense', [original.id, revised])).status, 409);
+      assert.deepEqual(await read((db) => db.expenses[0]), original, 'failed edits roll back');
+      assert.equal((await rpc('alice', 'groups/getGroup', [group.id])).data.myBalance, 0);
+      const invite = await rpc('alice', 'groups/getInviteLink', [group.id]);
+      assert.equal((await rpc('bob', 'groups/joinGroup', [String(invite.data).split('/').at(-1)!])).status, 200);
     });
     await t.test('same-timestamp activity pages do not skip records', async () => {
       await write((db) => {
@@ -106,24 +171,100 @@ test('shared-data API validates, isolates accounts, and persists the ledger', as
       assert.equal((await rpc('alice', 'recurring/confirmDue', [result.data.id])).status, 200);
       assert.equal((await rpc('alice', 'recurring/confirmDue', [result.data.id])).status, 422);
     });
-    await t.test('push outbox checks delivery receipts and removes invalid tokens', async () => {
+    await t.test('registering a shared device detaches its previous account', async () => {
+      const token = 'ExpoPushToken[shared_device]';
+      assert.equal((await rpc('alice', 'notifications/registerPushToken', [token])).status, 200);
+      assert.equal((await rpc('bob', 'notifications/registerPushToken', [token])).status, 200);
+      assert.equal(await read((db) => db.pushTokens.alice), undefined);
+      assert.deepEqual(await read((db) => db.pushTokens.bob), [token]);
+      assert.equal((await rpc('bob', 'notifications/registerPushToken', ['ExpoPushToken[bob_tablet]'])).status, 200);
+      assert.deepEqual(await read((db) => db.pushTokens.bob), [token, 'ExpoPushToken[bob_tablet]'], 'a second device keeps the first');
+    });
+    await t.test('push reaches every device and forgets only rejected ones', async () => {
+      const phone = 'ExpoPushToken[test]';
+      const tablet = 'ExpoPushToken[tablet]';
       await write((db) => {
-        db.pushTokens.bob = 'ExpoPushToken[test]';
+        db.pushTokens.bob = [phone, tablet];
         db.notifications.bob = [{ id: 'push_test', title: 'Payment', body: 'Recorded', category: 'payment_received', read: false, createdAt: new Date().toISOString() }];
         db.pushOutbox.push_test = { userId: 'bob', notificationId: 'push_test', attempts: 0, nextAttemptAt: new Date(0).toISOString() };
       });
-      await deliverPush(async (url) => {
+      await deliverPush(async (url, init) => {
         assert.equal(url, 'https://exp.host/--/api/v2/push/send');
-        return Response.json({ data: { status: 'ok', id: 'ticket_1' } });
+        assert.deepEqual(JSON.parse(String(init?.body)).map((m: { to: string }) => m.to), [phone, tablet]);
+        return Response.json({ data: [{ status: 'ok', id: 'ticket_1' }, { status: 'ok', id: 'ticket_2' }] });
       });
-      assert.equal(await read((db) => db.pushOutbox.push_test.ticketId), 'ticket_1');
+      assert.deepEqual(await read((db) => db.pushOutbox.push_test.tickets), [{ id: 'ticket_1', token: phone }, { id: 'ticket_2', token: tablet }]);
       await write((db) => { db.pushOutbox.push_test.nextAttemptAt = new Date(0).toISOString(); });
       await deliverPush(async (url) => {
         assert.equal(url, 'https://exp.host/--/api/v2/push/getReceipts');
-        return Response.json({ data: { ticket_1: { status: 'error', details: { error: 'DeviceNotRegistered' } } } });
+        return Response.json({ data: { ticket_1: { status: 'error', details: { error: 'DeviceNotRegistered' } }, ticket_2: { status: 'ok' } } });
       });
-      assert.equal(await read((db) => db.pushTokens.bob), undefined);
+      assert.deepEqual(await read((db) => db.pushTokens.bob), [tablet]);
       assert.equal(await read((db) => db.pushOutbox.push_test), undefined);
+    });
+    await t.test('an old push receipt cannot unregister a replacement device token', async () => {
+      await write((db) => {
+        db.pushTokens.bob = ['ExpoPushToken[replacement]'];
+        db.pushOutbox.rotated = { userId: 'bob', notificationId: 'push_test', attempts: 0, nextAttemptAt: new Date(0).toISOString(), ticketId: 'old_ticket', sentToken: 'ExpoPushToken[old]' };
+        db.pushOutbox.legacy = { userId: 'bob', notificationId: 'push_test', attempts: 0, nextAttemptAt: new Date(0).toISOString(), ticketId: 'legacy_ticket' };
+      });
+      await deliverPush(async () => Response.json({ data: {
+        old_ticket: { status: 'error', details: { error: 'DeviceNotRegistered' } },
+        legacy_ticket: { status: 'error', details: { error: 'DeviceNotRegistered' } },
+      } }));
+      assert.deepEqual(await read((db) => db.pushTokens.bob), ['ExpoPushToken[replacement]']);
+      assert.equal(await read((db) => db.pushOutbox.rotated), undefined);
+      assert.equal(await read((db) => db.pushOutbox.legacy), undefined);
+    });
+    await t.test('recurring jobs continue after another account fails', async () => {
+      await write((db) => {
+        const template = db.recurring[0];
+        db.recurring.push({ ...template, id: 'alice_due', autoCreate: true, nextDate: new Date().toISOString() });
+        db.recurring.push({ ...template, id: 'bob_due', createdBy: 'bob', autoCreate: true, nextDate: new Date().toISOString() });
+      });
+      const called: string[] = [];
+      await assert.rejects(processRecurring(async (id) => {
+        called.push(id);
+        if (id === 'alice') throw new Error('temporary billing outage');
+        return { plan: 'plus_monthly', status: 'active', currentPeriodEnd: '2099-01-01T00:00:00.000Z', updatedAt: new Date().toISOString() };
+      }));
+      assert.deepEqual(called, ['alice', 'bob']);
+      assert.equal(await read((db) => db.expenses.filter((e) => e.recurringId === 'bob_due').length), 1);
+      assert.equal(await read((db) => db.expenses.filter((e) => e.recurringId === 'alice_due').length), 0);
+    });
+    await t.test('deletion jobs retry failed accounts while completing healthy accounts', async () => {
+      await write((db) => {
+        for (const userId of ['failed_cleanup', 'healthy_cleanup']) db.pendingDeletions[userId] = { userId, name: 'Test', email: `${userId}@example.com`, createdAt: new Date().toISOString() };
+      });
+      const called: string[] = [];
+      await assert.rejects(processDeletions(async (id) => {
+        called.push(id);
+        if (id === 'failed_cleanup') throw new Error('temporary deletion outage');
+      }));
+      assert.deepEqual(called, ['failed_cleanup', 'healthy_cleanup']);
+      assert.ok(await read((db) => db.pendingDeletions.failed_cleanup));
+      assert.equal(await read((db) => db.pendingDeletions.healthy_cleanup), undefined);
+      await write((db) => { delete db.pendingDeletions.failed_cleanup; });
+    });
+    await t.test('worker isolates stages and waits for a running cycle on shutdown', async () => {
+      const calls: string[] = [];
+      await runWorkerCycle([
+        { name: 'deletion', run: async () => { throw new Error('failure'); } },
+        { name: 'push', run: async () => { calls.push('push'); } },
+      ], (name) => calls.push(`failed:${name}`));
+      assert.deepEqual(calls, ['failed:deletion', 'push']);
+      let release!: () => void;
+      let started!: () => void;
+      const running = new Promise<void>((resolve) => { started = resolve; });
+      const blocked = new Promise<void>((resolve) => { release = resolve; });
+      let finished = false;
+      const worker = startWorker([{ name: 'test', run: async () => { started(); await blocked; finished = true; } }], 5);
+      await running;
+      const stopping = worker.stop();
+      assert.equal(finished, false);
+      release();
+      await stopping;
+      assert.equal(finished, true);
     });
     await t.test('account deletion preserves other members’ financial history', async () => {
       const balance = (await rpc('bob', 'groups/getGroup', [group.id])).data.myBalance;

@@ -15,6 +15,7 @@ import { useAuthSession } from '@/features/auth/auth-context';
 import { useCompleteSetup } from '@/features/profile/queries';
 import { USE_CASES } from '@/features/profile/use-cases';
 import { haptics } from '@/lib/haptics';
+import { captureEvent } from '@/lib/posthog';
 import { toast } from '@/store/toast.store';
 import type { CurrencyCode, UseCase } from '@/types/models';
 
@@ -42,6 +43,11 @@ export default function SetupScreen() {
     }
     try {
       await complete.mutateAsync({ name: name.trim(), useCase: useCase ?? 'other', currency, includeSampleTaabs: includeSamples });
+      captureEvent('onboarding_completed', {
+        use_case: useCase ?? 'other',
+        currency,
+        included_sample_taabs: includeSamples,
+      });
       haptics.success();
     } catch {
       toast.error('Couldn’t finish setting up', 'Check your connection and try again.');

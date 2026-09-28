@@ -4,6 +4,9 @@ import type { AppNotification, NotificationCategory, NotificationPreferences } f
 import { read, write } from './mock/db';
 import { requireSession } from './session';
 
+/** Phones and tablets one account can receive push notifications on. */
+const MAX_PUSH_DEVICES = 5;
+
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   new_expense: true,
   payment_received: true,
@@ -51,11 +54,20 @@ export const localNotificationsService = {
     });
   },
 
-  /** The backend stores the Expo push token and filters sends by preferences. */
+  /** The backend stores each device's Expo push token and filters sends by preferences. */
   async registerPushToken(token: string): Promise<void> {
     const me = requireSession();
     await write((db) => {
-      db.pushTokens[me.userId] = token;
+      // A shared device must stop receiving the previous account's notifications.
+      for (const [userId, tokens] of Object.entries(db.pushTokens)) {
+        if (userId === me.userId || !tokens.includes(token)) continue;
+        const remaining = tokens.filter((t) => t !== token);
+        if (remaining.length) db.pushTokens[userId] = remaining;
+        else delete db.pushTokens[userId];
+      }
+      // Re-registering moves the device to the end; the oldest device drops off past the cap.
+      const mine = (db.pushTokens[me.userId] ?? []).filter((t) => t !== token);
+      db.pushTokens[me.userId] = [...mine, token].slice(-MAX_PUSH_DEVICES);
     });
   },
 };

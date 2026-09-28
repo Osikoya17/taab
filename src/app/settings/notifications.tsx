@@ -25,34 +25,44 @@ export default function NotificationSettingsScreen() {
   const update = useUpdateNotificationPreferences();
   const markPrompted = usePreferences((s) => s.markNotificationPrompted);
   const [permission, setPermission] = useState<string | null>(null);
+  const [registrationFailed, setRegistrationFailed] = useState(false);
+  const [registering, setRegistering] = useState(false);
 
   useEffect(() => {
     getPushPermission()
-      .then(setPermission)
+      .then(async (status) => {
+        setPermission(status);
+        if (status === 'granted') setRegistrationFailed(!await enablePushNotifications());
+      })
       .catch(() => setPermission('undetermined'));
   }, []);
 
   async function turnOn() {
+    if (registering) return;
+    setRegistering(true);
     try {
-    markPrompted();
-    const granted = await enablePushNotifications();
-    const status = await getPushPermission();
-    setPermission(status);
-    if (!granted && status === 'denied') Linking.openSettings();
+      markPrompted();
+      const granted = await enablePushNotifications();
+      const status = await getPushPermission();
+      setPermission(status);
+      setRegistrationFailed(!granted && status === 'granted');
+      if (!granted && status === 'denied') await Linking.openSettings();
+      else if (!granted && status === 'granted') toast.error('Couldn’t connect notifications', 'Check your connection and try again. Your inbox still works.');
     } catch { toast.error('Couldn’t enable notifications', 'Please try again in device settings.'); }
+    finally { setRegistering(false); }
   }
 
   return (
     <Screen header={<AppHeader back title="Notifications" />}>
-      {permission === 'unsupported' ? <Text variant="caption" tone="muted" className="mt-3">Push notifications need the installed taab app, so they aren’t available here. Your notification inbox still works.</Text> : permission !== null && permission !== 'granted' ? (
+      {permission === 'unsupported' ? <Text variant="caption" tone="muted" className="mt-3">Push notifications aren’t available in this version of taab. Your notification inbox still works.</Text> : permission !== null && (permission !== 'granted' || registrationFailed) ? (
         <Surface className="mt-2 gap-3">
           <View>
-            <Text variant="bodyStrong">Push notifications are off</Text>
+            <Text variant="bodyStrong">{registrationFailed ? 'Notifications couldn’t connect' : 'Push notifications are off'}</Text>
             <Text variant="caption" tone="muted" className="mt-0.5">
-              Turn them on to hear when someone adds an expense or pays you back.
+              {registrationFailed ? 'Check your connection and retry to finish setting up notifications.' : 'Turn them on to hear when someone adds an expense or pays you back.'}
             </Text>
           </View>
-          <Button label={permission === 'denied' ? 'Open settings' : 'Turn on notifications'} size="md" onPress={turnOn} />
+          <Button label={registrationFailed ? 'Retry setup' : permission === 'denied' ? 'Open settings' : 'Turn on notifications'} size="md" onPress={turnOn} loading={registering} />
         </Surface>
       ) : null}
 

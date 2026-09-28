@@ -7,6 +7,7 @@ export type ServiceErrorCode =
   | 'not_found'
   | 'forbidden'
   | 'validation'
+  | 'history_locked'
   | 'limit_reached'
   | 'rate_limited'
   | 'unavailable'

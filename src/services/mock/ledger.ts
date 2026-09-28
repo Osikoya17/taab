@@ -11,6 +11,15 @@ export function groupsForUser(db: MockDatabase, userId: string): Group[] {
   return db.groups.filter((g) => g.members.some((m) => m.userId === userId));
 }
 
+/** Everyone with an account who already shares a taab with this user. */
+export function connectionsOf(db: MockDatabase, userId: string): Set<string> {
+  const people = new Set<string>();
+  for (const group of groupsForUser(db, userId)) {
+    for (const member of group.members) if (member.status === 'active' && member.userId !== userId) people.add(member.userId);
+  }
+  return people;
+}
+
 export function requireGroup(db: MockDatabase, groupId: string, userId: string): Group {
   const group = db.groups.find((g) => g.id === groupId);
   if (!group) throw new ServiceError('not_found');
@@ -57,7 +66,7 @@ export function logActivity(db: MockDatabase, event: Omit<ActivityEvent, 'id' | 
       body: `${event.actorName} · ${event.title ?? event.groupName}`,
       groupId: event.groupId, expenseId: event.expenseId, read: false, createdAt,
     });
-    if (db.pushTokens[member.userId]) db.pushOutbox[notificationId] = { userId: member.userId, notificationId, attempts: 0, nextAttemptAt: createdAt };
+    if (db.pushTokens[member.userId]?.length) db.pushOutbox[notificationId] = { userId: member.userId, notificationId, attempts: 0, nextAttemptAt: createdAt };
   }
 }
 

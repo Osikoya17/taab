@@ -5,7 +5,7 @@ import { notificationsService } from '@/services/notifications.service';
 import type { NotificationPreferences } from '@/types/models';
 
 export function useNotifications() {
-  return useQuery({ queryKey: queryKeys.notifications, queryFn: notificationsService.list });
+  return useQuery({ queryKey: queryKeys.notifications, queryFn: () => notificationsService.list() });
 }
 
 export function useUnreadCount() {
@@ -16,13 +16,13 @@ export function useUnreadCount() {
 export function useMarkAllRead() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: notificationsService.markAllRead,
+    mutationFn: () => notificationsService.markAllRead(),
     onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.notifications }),
   });
 }
 
 export function useNotificationPreferences() {
-  return useQuery({ queryKey: queryKeys.notificationPreferences, queryFn: notificationsService.getPreferences });
+  return useQuery({ queryKey: queryKeys.notificationPreferences, queryFn: () => notificationsService.getPreferences() });
 }
 
 export function useUpdateNotificationPreferences() {

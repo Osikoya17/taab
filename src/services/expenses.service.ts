@@ -2,7 +2,7 @@ import { connectService } from './api/service';
 import { computeExpenseStatuses, type ExpenseSettlementStatus } from '@/features/settlements/balances';
 import { computeSplit } from '@/features/expenses/split';
 import { nextOccurrence } from '@/features/recurring/schedule';
-import type { Expense, ExpenseCategory, ExpensePayer, ExpenseSplit, Group, MinorUnits, SplitMethod } from '@/types/models';
+import type { Expense, ExpenseCategory, ExpensePayer, ExpenseSplit, ForeignAmount, Group, MinorUnits, SplitMethod } from '@/types/models';
 
 import { ServiceError } from './api/errors';
 import { createId, read, write, type MockDatabase } from './mock/db';
@@ -21,6 +21,7 @@ export type ExpenseInput = {
   category?: ExpenseCategory;
   notes?: string;
   receiptUrl?: string;
+  original?: ForeignAmount;
 };
 
 export type ExpenseListItem = {
@@ -68,6 +69,13 @@ function toListItem(expense: Expense, statuses: Map<string, ExpenseSettlementSta
 function statusesFor(db: MockDatabase, group: Group) {
   const expenses = db.expenses.filter((e) => e.groupId === group.id);
   return computeExpenseStatuses(expenses, groupBalances(db, group));
+}
+
+function protectFormerMembers(db: MockDatabase, group: Group) {
+  const members = new Set(group.members.map((m) => m.userId));
+  for (const [userId, balance] of groupBalances(db, group)) {
+    if (!members.has(userId) && balance !== 0) throw new ServiceError('history_locked');
+  }
 }
 
 export const localExpensesService = {
@@ -145,6 +153,9 @@ export const localExpensesService = {
       const existing = db.expenses[index];
       const group = requireGroup(db, existing.groupId, me.userId);
       if (input.groupId !== existing.groupId) throw new ServiceError('validation');
+      const formerMembers = new Set([...existing.paidBy, ...existing.splitBetween]
+        .filter((p) => !group.members.some((m) => m.userId === p.userId)).map((p) => p.userId));
+      if ([...input.paidBy, ...input.splitBetween].some((p) => formerMembers.has(p.userId))) throw new ServiceError('history_locked');
       validateExpense(db, group, me.userId, input);
       const now = new Date().toISOString();
       const updated: Expense = {
@@ -153,9 +164,12 @@ export const localExpensesService = {
         groupId: existing.groupId,
         title: input.title.trim(),
         notes: input.notes?.trim() || undefined,
+        // Replaced, never inherited: an edited amount must not keep a stale "entered as".
+        original: input.original,
         updatedAt: now,
       };
       db.expenses[index] = updated;
+      protectFormerMembers(db, group);
       touchGroup(group, now);
       logActivity(db, {
         type: 'expense_edited',
@@ -179,6 +193,7 @@ export const localExpensesService = {
       if (!expense) throw new ServiceError('not_found');
       const group = requireGroup(db, expense.groupId, me.userId);
       db.expenses = db.expenses.filter((e) => e.id !== expenseId);
+      protectFormerMembers(db, group);
       touchGroup(group);
       logActivity(db, {
         type: 'expense_deleted',

@@ -12,6 +12,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
 import { SplashOverlay } from '@/components/brand/SplashOverlay';
 import { ToastHost } from '@/components/ui/Toast';
@@ -25,9 +26,50 @@ import { useProfile } from '@/features/profile/queries';
 import { queryClient, queryPersister, wireQueryEnvironment } from '@/lib/query-client';
 import { usePreferences } from '@/store/preferences.store';
 import { env, isDemoAuth } from '@/lib/env';
+import { posthog } from '@/lib/posthog';
+import { posthogLog } from '@/lib/posthog-logs';
 
 SplashScreen.preventAutoHideAsync();
 wireQueryEnvironment();
+
+/**
+ * Establishes a persistent PostHog identity (the account id, no personal
+ * details) exactly when the authenticated session becomes known. The SDK applies this identity to subsequent events
+ * and captured exceptions until logout resets it.
+ */
+function PostHogIdentitySync() {
+  const posthogClient = usePostHog();
+  const { isLoaded, user } = useAuthSession();
+  const identifiedUserId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    if (!user) {
+      if (identifiedUserId.current) {
+        posthogLog.info('Authenticated session ended');
+        posthogClient.reset();
+        identifiedUserId.current = null;
+      }
+      return;
+    }
+
+    if (identifiedUserId.current === user.id) return;
+
+    if (identifiedUserId.current) posthogClient.reset();
+
+    // Identify by the opaque account id only: names and emails stay out of analytics.
+    posthogClient.identify(user.id, {
+      $set_once: {
+        created_at: user.createdAt,
+      },
+    });
+    identifiedUserId.current = user.id;
+    posthogLog.info('Authenticated session is ready');
+  }, [isLoaded, posthogClient, user]);
+
+  return null;
+}
 
 function RootNavigator({ onReady }: { onReady: (ready: boolean) => void }) {
   const router = useRouter();
@@ -46,6 +88,9 @@ function RootNavigator({ onReady }: { onReady: (ready: boolean) => void }) {
   useEffect(() => {
     onReady(ready);
   }, [ready, onReady]);
+  useEffect(() => {
+    if (ready && inApp) posthogLog.info('Authenticated application navigation is ready');
+  }, [ready, inApp]);
   useEffect(() => {
     if (ready && inApp && pendingInvite) router.replace({ pathname: '/join/[token]', params: { token: pendingInvite } });
   }, [ready, inApp, pendingInvite, router]);
@@ -135,9 +180,18 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.canvas }}>
-      <AuthProvider>
-        <AppShell fontsLoaded={fontsLoaded || !!fontError} />
-      </AuthProvider>
+      {posthog ? (
+        <PostHogProvider client={posthog}>
+          <AuthProvider>
+            <PostHogIdentitySync />
+            <AppShell fontsLoaded={fontsLoaded || !!fontError} />
+          </AuthProvider>
+        </PostHogProvider>
+      ) : (
+        <AuthProvider>
+          <AppShell fontsLoaded={fontsLoaded || !!fontError} />
+        </AuthProvider>
+      )}
     </GestureHandlerRootView>
   );
 }

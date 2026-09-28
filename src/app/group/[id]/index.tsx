@@ -24,6 +24,7 @@ import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { useAuthSession } from '@/features/auth/auth-context';
 import { FEATURES } from '@/features/billing/products';
+import { useDisplayCurrency } from '@/features/currency/display';
 import { useEntitlements, usePremiumGate } from '@/features/billing/use-entitlements';
 import { useGroupExpenses, useGroupSettlements } from '@/features/expenses/queries';
 import { groupSummaryText } from '@/features/groups/export';
@@ -52,6 +53,7 @@ export default function GroupDetailScreen() {
   const bottomInset = useBottomInset(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const { display, convert } = useDisplayCurrency();
 
   const detail = group.data;
   const feed: FeedItem[] = [
@@ -102,6 +104,11 @@ export default function GroupDetailScreen() {
           Total outstanding
         </Text>
         <Money amount={detail.outstanding} currency={detail.group.currency} size="large" animated />
+        {convert(0, detail.group.currency).converted ? (
+          <Text variant="caption" tone="faint" className="mt-0.5">
+            Shown in {display} at today’s rates · this taab uses {detail.group.currency}
+          </Text>
+        ) : null}
         <View className="mt-2">
           <BalanceBadge amount={detail.myBalance} currency={detail.group.currency} appearance="pill" groupSettled={detail.isSettled} />
         </View>
@@ -200,7 +207,7 @@ export default function GroupDetailScreen() {
         visible={confirmLeave}
         onClose={() => setConfirmLeave(false)}
         title={`Leave ${detail?.group.name ?? 'this taab'}?`}
-        description="You’ll stop seeing its expenses. You can only leave once you’re settled.">
+        description="You can leave once you’re settled. You’ll stop seeing this taab, and repeating bills that include you will stop for the group.">
         <View className="gap-2">
           <Button label="Leave taab" variant="danger" onPress={leaveGroup} loading={leave.isPending} />
           <Button label="Stay" variant="ghost" onPress={() => setConfirmLeave(false)} />

@@ -16,6 +16,8 @@ export const expenseInputSchema = z.object({
   category: z.enum(['food', 'transport', 'home', 'utilities', 'entertainment', 'groceries', 'travel', 'subscriptions', 'other']).optional(),
   notes: z.string().max(500).optional(),
   receiptUrl: z.string().max(1_400_100).optional(),
+  /** What was typed when entered in another currency. Informational: `amount` is authoritative. */
+  original: z.object({ amount: moneySchema.positive(), currency: currencySchema, rate: z.number().positive().finite().max(1_000_000) }).optional(),
 });
 export const recurringInputSchema = expenseInputSchema.pick({ groupId: true, title: true, amount: true, paidBy: true, splitBetween: true, splitMethod: true }).extend({
   frequency: z.enum(['weekly', 'monthly', 'custom']),

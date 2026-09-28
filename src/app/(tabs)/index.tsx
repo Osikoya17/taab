@@ -21,7 +21,9 @@ import { Text } from '@/components/ui/Text';
 import { DEFAULT_CURRENCY } from '@/constants/currencies';
 import { useActivityFeed } from '@/features/activity/queries';
 import { useAuthSession } from '@/features/auth/auth-context';
-import { buildOverview } from '@/features/groups/overview';
+import { useDisplayCurrency } from '@/features/currency/display';
+import { useExchangeRates } from '@/features/currency/queries';
+import { buildOverview, needsConversion } from '@/features/groups/overview';
 import { useGroups } from '@/features/groups/queries';
 import { useUnreadCount } from '@/features/notifications/queries';
 import { useProfile } from '@/features/profile/queries';
@@ -40,7 +42,11 @@ export default function HomeScreen() {
   const unread = useUnreadCount();
 
   const name = profile?.name?.split(' ')[0] ?? user?.firstName ?? '';
-  const overview = groups.data ? buildOverview(groups.data, meId, profile?.defaultCurrency ?? DEFAULT_CURRENCY) : null;
+  const { display, setDisplay, ratesUnavailable } = useDisplayCurrency();
+  // The chosen display currency wins; otherwise total in the account's default.
+  const preferredCurrency = display ?? profile?.defaultCurrency ?? DEFAULT_CURRENCY;
+  const rates = useExchangeRates(!!groups.data && needsConversion(groups.data, preferredCurrency));
+  const overview = groups.data ? buildOverview(groups.data, meId, preferredCurrency, rates.data) : null;
   const recentEvents = activity.data?.pages[0]?.items.slice(0, 5) ?? [];
   const hasGroups = (groups.data?.length ?? 0) > 0;
 
@@ -97,7 +103,9 @@ export default function HomeScreen() {
         />
       ) : (
         <>
-          <View className="pt-4">{overview ? <BalanceHero overview={overview} /> : null}</View>
+          <View className="pt-4">
+            {overview ? <BalanceHero overview={overview} selectedCurrency={preferredCurrency} onSelectCurrency={setDisplay} ratesUnavailable={ratesUnavailable} /> : null}
+          </View>
 
           <View className="mt-5 flex-row gap-3">
             <View className="flex-1">

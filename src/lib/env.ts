@@ -11,6 +11,8 @@ export const env = {
   apiUrl: process.env.EXPO_PUBLIC_API_URL ?? '',
   inviteBaseUrl: process.env.EXPO_PUBLIC_INVITE_BASE_URL ?? 'taab://join',
   supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? 'hello@taab.app',
+  /** Only show Sign in with Apple once it is enabled for the Clerk instance. */
+  appleSignIn: process.env.EXPO_PUBLIC_APPLE_SIGN_IN === 'true',
 };
 
 /**

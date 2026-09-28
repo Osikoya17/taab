@@ -18,6 +18,7 @@ import { PLUS_BENEFITS, PLUS_MONTHLY, PLUS_PRICES, PLUS_YEARLY, yearlySavingsPer
 import type { SubscriptionStatus } from '@/features/billing/types';
 import { useCheckout, useEntitlements, useRestorePurchases, useSubscriptionAction } from '@/features/billing/use-entitlements';
 import { haptics } from '@/lib/haptics';
+import { captureEvent } from '@/lib/posthog';
 import { hasPlusAccess } from '@/features/billing/access';
 import { hasRemoteApi } from '@/services/api/client';
 import { toast } from '@/store/toast.store';
@@ -44,6 +45,10 @@ export default function SubscriptionScreen() {
     try {
       const updated = await checkout.mutateAsync(plan);
       if (!hasPlusAccess(updated)) { toast.show('Subscription not activated', 'Your plan has not changed.'); return; }
+      captureEvent('subscription_started', {
+        plan,
+        trial_offered: offersTrial,
+      });
       haptics.success();
       toast.success('Welcome to taab+', offersTrial ? `Your ${selected.trialDays}-day trial has started.` : undefined);
       goBack('/profile');
@@ -55,6 +60,9 @@ export default function SubscriptionScreen() {
   async function restorePurchases() {
     try {
       const restored = await restore.mutateAsync();
+      if (restored.plan !== 'free') {
+        captureEvent('subscription_restored', { plan: restored.plan });
+      }
       toast.show(restored.plan === 'free' ? 'No purchases to restore' : 'taab+ restored');
     } catch {
       toast.error('Couldn’t restore right now', 'Check your connection and try again.');

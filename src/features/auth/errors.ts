@@ -3,7 +3,7 @@ import type { AuthResult } from './types';
 type ClerkLikeError = {
   code?: string;
   longMessage?: string;
-  errors?: { code?: string; meta?: { paramName?: string } }[];
+  errors?: { code?: string; longMessage?: string; meta?: { paramName?: string } }[];
 };
 
 /**
@@ -15,7 +15,6 @@ const MESSAGES: Record<string, { message: string; field?: 'email' | 'password' |
   form_password_incorrect: { message: 'That password doesn’t look right.', field: 'password' },
   form_identifier_exists: { message: 'That email already has a taab account. Try signing in.', field: 'email' },
   form_password_pwned: { message: 'That password has appeared in a data breach. Choose another.', field: 'password' },
-  form_password_length_too_short: { message: 'Use at least 8 characters.', field: 'password' },
   form_password_validation_failed: { message: 'That password doesn’t look right.', field: 'password' },
   form_param_format_invalid: { message: 'Check that email address.', field: 'email' },
   form_code_incorrect: { message: 'That code isn’t right. Check your email and try again.', field: 'code' },
@@ -26,9 +25,18 @@ const MESSAGES: Record<string, { message: string; field?: 'email' | 'password' |
   network_error: { message: 'You seem to be offline. Check your connection.' },
 };
 
+/**
+ * Password rules (length, strength) are configured in the Clerk Dashboard, so
+ * show Clerk's own wording — it states the exact requirement.
+ */
+const PASSWORD_RULE_CODES = new Set(['form_password_length_too_short', 'form_password_length_too_long', 'form_password_not_strong_enough', 'form_password_size_in_bytes_exceeded']);
+
 export function toAuthError(error: unknown, fallback = 'Something went wrong. Please try again.'): AuthResult {
   const e = (error ?? {}) as ClerkLikeError;
   const code = e.errors?.[0]?.code ?? e.code;
+  if (code && PASSWORD_RULE_CODES.has(code)) {
+    return { status: 'error', message: e.errors?.[0]?.longMessage ?? e.longMessage ?? 'Choose a longer password.', field: 'password' };
+  }
   const known = code ? MESSAGES[code] : undefined;
   if (known) return { status: 'error', ...known };
   return { status: 'error', message: fallback };

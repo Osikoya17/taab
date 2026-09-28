@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import type { CurrencyCode } from '@/types/models';
+
 /**
  * Device-level preferences that are not sensitive and not account data.
  * Account data (currency, name) lives on the backend via usersService.
@@ -12,9 +14,15 @@ type PreferencesState = {
   notificationPromptedAt: string | null;
   hydrated: boolean;
   pendingInvite: string | null;
+  /**
+   * Show every amount in this currency at today's rates. `null` shows each
+   * taab in its own currency. Display only: the ledger never changes.
+   */
+  displayCurrency: CurrencyCode | null;
   setPendingInvite: (token: string | null) => void;
   completeOnboarding: () => void;
   markNotificationPrompted: () => void;
+  setDisplayCurrency: (currency: CurrencyCode | null) => void;
 };
 
 export const usePreferences = create<PreferencesState>()(
@@ -24,14 +32,16 @@ export const usePreferences = create<PreferencesState>()(
       notificationPromptedAt: null,
       hydrated: false,
       pendingInvite: null,
+      displayCurrency: null,
       setPendingInvite: (pendingInvite) => set({ pendingInvite }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
       markNotificationPrompted: () => set({ notificationPromptedAt: new Date().toISOString() }),
+      setDisplayCurrency: (displayCurrency) => set({ displayCurrency }),
     }),
     {
       name: 'taab.preferences.v1',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite }) => ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite }),
+      partialize: ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency }) => ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency }),
       onRehydrateStorage: () => () => usePreferences.setState({ hydrated: true }),
     },
   ),

@@ -1,6 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { Camera, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { Camera, ChevronDown, ChevronLeft, ChevronRight, ImageIcon, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -13,6 +14,7 @@ import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
 import { colors } from '@/constants/theme';
 import { CATEGORIES } from '@/features/expenses/categories';
+import { useReceiptImage } from '@/features/expenses/use-receipt-image';
 import type { ExpenseCategory } from '@/types/models';
 import { dayLabel, longDate } from '@/utils/dates';
 import { toast } from '@/store/toast.store';
@@ -36,6 +38,22 @@ export type MoreOptionsProps = {
   defaultOpen?: boolean;
 };
 
+/** Receipts only need to be legible: cap the width and re-encode as JPEG. */
+const RECEIPT_MAX_WIDTH = 1600;
+/** Matches the server limit on the base64 payload. */
+const RECEIPT_MAX_BASE64 = 1_400_000;
+
+async function toReceiptDataUri(asset: ImagePicker.ImagePickerAsset): Promise<string | null> {
+  const context = ImageManipulator.manipulate(asset.uri);
+  if (asset.width > RECEIPT_MAX_WIDTH) context.resize({ width: RECEIPT_MAX_WIDTH, height: null });
+  const image = await context.renderAsync();
+  for (const compress of [0.7, 0.5, 0.35]) {
+    const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress, base64: true });
+    if (saved.base64 && saved.base64.length <= RECEIPT_MAX_BASE64) return `data:image/jpeg;base64,${saved.base64}`;
+  }
+  return null;
+}
+
 function shiftDay(iso: string, days: number) {
   const d = new Date(iso);
   d.setDate(d.getDate() + days);
@@ -46,23 +64,27 @@ function shiftDay(iso: string, days: number) {
 export function MoreOptions({ value, onChange, recurringUnlocked, onRecurringLocked, allowRepeat, defaultOpen = false }: MoreOptionsProps) {
   const [open, setOpen] = useState(defaultOpen);
   const isToday = dayLabel(value.date) === 'Today';
+  const receiptPreview = useReceiptImage(value.receiptUri);
 
-  async function pickReceipt() {
+  async function attachReceipt(source: 'camera' | 'library') {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5, allowsEditing: false, base64: true });
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          toast.error('Camera access is off', 'Allow camera access in Settings, or choose a photo instead.');
+          return;
+        }
+      }
+      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], allowsEditing: false };
+      const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
       if (result.canceled || !result.assets[0]) return;
-      const asset = result.assets[0];
-      if (!asset.base64 || asset.base64.length > 1_400_000) {
-        toast.error('Choose a smaller receipt photo', 'Use a JPEG, PNG, or WebP image under 1 MB.');
+      const receiptUri = await toReceiptDataUri(result.assets[0]);
+      if (!receiptUri) {
+        toast.error('That photo is too large', 'Try a different photo of the receipt.');
         return;
       }
-      const mime = asset.base64.startsWith('/9j/') ? 'image/jpeg' : asset.base64.startsWith('iVBOR') ? 'image/png' : asset.base64.startsWith('UklGR') ? 'image/webp' : '';
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) {
-        toast.error('Unsupported photo format', 'Choose a JPEG, PNG, or WebP image.');
-        return;
-      }
-      onChange({ receiptUri: `data:${mime};base64,${asset.base64}` });
-    } catch { toast.error('Couldn’t attach the photo', 'Try choosing it again.'); }
+      onChange({ receiptUri });
+    } catch { toast.error('Couldn’t attach the photo', 'Try again.'); }
   }
 
   return (
@@ -129,21 +151,32 @@ export function MoreOptions({ value, onChange, recurringUnlocked, onRecurringLoc
               </Text>
               {value.receiptUri ? (
                 <View className="self-start">
-                  <Image source={{ uri: value.receiptUri }} style={{ width: 96, height: 120, borderRadius: 16 }} contentFit="cover" accessibilityLabel="Receipt photo" />
+                  <Image source={receiptPreview ? { uri: receiptPreview } : undefined} style={{ width: 96, height: 120, borderRadius: 16, backgroundColor: colors.sunken }} contentFit="cover" accessibilityLabel="Receipt photo" />
                   <View className="absolute -right-2 -top-2">
                     <IconButton icon={X} size={28} accessibilityLabel="Remove receipt" onPress={() => onChange({ receiptUri: undefined })} />
                   </View>
                 </View>
               ) : (
-                <PressableScale
-                  onPress={pickReceipt}
-                  accessibilityLabel="Attach a receipt photo"
-                  className="h-14 flex-row items-center justify-center gap-2 rounded-input border border-dashed border-line-strong">
-                  <Camera size={18} color={colors.muted} strokeWidth={1.8} />
-                  <Text variant="label" tone="muted">
-                    Attach a photo
-                  </Text>
-                </PressableScale>
+                <View className="flex-row gap-2">
+                  <PressableScale
+                    onPress={() => attachReceipt('camera')}
+                    accessibilityLabel="Take a photo of the receipt"
+                    className="h-14 flex-1 flex-row items-center justify-center gap-2 rounded-input border border-dashed border-line-strong">
+                    <Camera size={18} color={colors.muted} strokeWidth={1.8} />
+                    <Text variant="label" tone="muted">
+                      Take photo
+                    </Text>
+                  </PressableScale>
+                  <PressableScale
+                    onPress={() => attachReceipt('library')}
+                    accessibilityLabel="Choose a receipt photo"
+                    className="h-14 flex-1 flex-row items-center justify-center gap-2 rounded-input border border-dashed border-line-strong">
+                    <ImageIcon size={18} color={colors.muted} strokeWidth={1.8} />
+                    <Text variant="label" tone="muted">
+                      Choose photo
+                    </Text>
+                  </PressableScale>
+                </View>
               )}
             </View>
 

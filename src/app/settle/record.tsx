@@ -17,10 +17,13 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { BalanceSkeleton } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
 import { useAuthSession } from '@/features/auth/auth-context';
+import { useDisplayCurrency } from '@/features/currency/display';
+import { convertMinor } from '@/features/currency/rates';
 import { useGroup } from '@/features/groups/queries';
 import { AVAILABLE_METHODS } from '@/features/settlements/methods';
 import { useRecordSettlement } from '@/features/settlements/queries';
 import { haptics } from '@/lib/haptics';
+import { captureEvent } from '@/lib/posthog';
 import { toast } from '@/store/toast.store';
 import type { SettlementMethod } from '@/types/models';
 import { formatMoney } from '@/utils/money';
@@ -42,6 +45,7 @@ export default function RecordPaymentScreen() {
   const [method, setMethod] = useState<SettlementMethod>('bank_transfer');
   const [note, setNote] = useState('');
   const [done, setDone] = useState<{ amount: number } | null>(null);
+  const { display, rates, format } = useDisplayCurrency();
 
   const detail = group.data;
   if (!detail) {
@@ -53,17 +57,26 @@ export default function RecordPaymentScreen() {
   }
 
   const currency = detail.group.currency;
+  /** A custom amount is typed in the display currency and saved in the taab's. */
+  const entry = display && rates ? display : currency;
   const youPay = params.fromUserId === meId;
   const otherId = youPay ? params.toUserId : params.fromUserId;
   const other = detail.group.members.find((m) => m.userId === otherId);
   const otherName = other?.name ?? 'them';
-  const amount = mode === 'full' ? suggested : custom;
+  // "Full amount" records the exact debt, so it always settles to zero.
+  const amount = mode === 'full' ? suggested : entry !== currency && rates ? convertMinor(custom, entry, currency, rates) : custom;
   const tooMuch = amount > suggested;
 
   async function submit() {
     if (amount <= 0) return;
     try {
       await record.mutateAsync({ groupId: params.groupId, fromUserId: params.fromUserId, toUserId: params.toUserId, amount, method, note });
+      captureEvent('settlement_recorded', {
+        currency,
+        payment_method: method,
+        amount_mode: mode,
+        recorded_as_payer: youPay,
+      });
       haptics.success();
       setDone({ amount });
     } catch {
@@ -83,8 +96,8 @@ export default function RecordPaymentScreen() {
             </Text>
             <Text variant="body" tone="muted" className="mt-2 text-center">
               {remaining === 0
-                ? `${formatMoney(done.amount, currency)} ${youPay ? 'paid to' : 'received from'} ${otherName}.`
-                : `${formatMoney(remaining, currency)} still to go with ${otherName}.`}
+                ? `${format(done.amount, currency)} ${youPay ? 'paid to' : 'received from'} ${otherName}.`
+                : `${format(remaining, currency)} still to go with ${otherName}.`}
             </Text>
           </Animated.View>
         </View>
@@ -103,7 +116,7 @@ export default function RecordPaymentScreen() {
           onPress={submit}
           loading={record.isPending}
           disabled={amount <= 0}
-          accessibilityHint={`Records ${formatMoney(amount, currency)}`}
+          accessibilityHint={`Records ${format(amount, currency)}`}
         />
       }>
       <View className="items-center pt-4">
@@ -129,10 +142,15 @@ export default function RecordPaymentScreen() {
         />
         {mode === 'custom' ? (
           <View className="mt-4">
-            <CurrencyInput value={custom} onChange={setCustom} currency={currency} autoFocus />
+            <CurrencyInput value={custom} onChange={setCustom} currency={entry} autoFocus />
+            {entry !== currency && custom > 0 ? (
+              <Text variant="caption" tone="muted" className="text-center">
+                Records {formatMoney(amount, currency)} in {detail.group.name}
+              </Text>
+            ) : null}
             {tooMuch ? (
               <Text variant="caption" tone="muted" className="text-center">
-                That’s more than the {formatMoney(suggested, currency)} outstanding — the extra will show as credit.
+                That’s more than the {format(suggested, currency)} outstanding — the extra will show as credit.
               </Text>
             ) : null}
           </View>

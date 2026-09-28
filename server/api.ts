@@ -15,6 +15,7 @@ import { localUsersService } from '../src/services/users.service';
 import { read, write } from '../src/services/mock/db';
 import { FREE_SUBSCRIPTION, type SubscriptionState } from '../src/features/billing/types';
 import { expenseInputSchema, groupInputSchema, idSchema, inviteSchema, profilePatchSchema, recurringInputSchema, repeatSchema, settlementSchema, setupSchema } from '../src/services/validation';
+import type { ReceiptStore } from './storage';
 
 const session = new AsyncLocalStorage<SessionIdentity>();
 setSessionProvider(() => session.getStore() ?? null);
@@ -63,14 +64,35 @@ const operations: Record<string, Operation> = {
   'reminders/getStatus': operation(z.tuple([idSchema, idSchema]), localRemindersService.getStatus),
   'reminders/sendReminder': operation(z.tuple([z.object({ groupId: idSchema, toUserId: idSchema, message: z.string().trim().min(1).max(500) })]), localRemindersService.sendReminder),
 };
-const statuses: Record<ServiceErrorCode, number> = { forbidden: 403, validation: 422, not_found: 404, limit_reached: 409, rate_limited: 429, network: 503, unavailable: 503, unknown: 500 };
+const statuses: Record<ServiceErrorCode, number> = { forbidden: 403, validation: 422, history_locked: 409, not_found: 404, limit_reached: 409, rate_limited: 429, network: 503, unavailable: 503, unknown: 500 };
 
 export type ApiOptions = {
   authenticate: (request: IncomingMessage) => Promise<SessionIdentity>;
   allowedOrigins: string[];
   getSubscription?: (userId: string) => Promise<SubscriptionState>;
   deleteIdentity?: (userId: string) => Promise<void>;
+  /** Stores receipt photos outside the ledger. Without it they stay inline. */
+  receipts?: ReceiptStore;
+  /** Behind exactly one reverse proxy: rate-limit by the address it reports. */
+  trustProxy?: boolean;
 };
+
+const RECEIPT_PREFIX = '/receipts/';
+const RECEIPT_PATH = /^\/receipts\/([0-9a-f-]{36})$/;
+
+/** The client address used for rate limiting. */
+function clientAddress(request: IncomingMessage, trustProxy: boolean): string {
+  if (trustProxy) {
+    // The last entry is the one our own proxy appended; earlier ones are client-supplied.
+    const forwarded = String(request.headers['x-forwarded-for'] ?? '').split(',').at(-1)?.trim();
+    if (forwarded) return forwarded;
+  }
+  return request.socket.remoteAddress ?? 'unknown';
+}
+
+async function isGroupMember(groupId: string, userId: string) {
+  return read((db) => db.groups.some((g) => g.id === groupId && g.members.some((m) => m.userId === userId)));
+}
 
 export function createApi(options: ApiOptions) {
   const limits = new Map<string, { count: number; until: number }>();
@@ -81,7 +103,10 @@ export function createApi(options: ApiOptions) {
     };
     try {
       const origin = request.headers.origin;
-      if (origin && !options.allowedOrigins.includes(origin)) throw new ServiceError('forbidden');
+      if (origin && !options.allowedOrigins.includes(origin)) {
+        console.warn(`Request rejected: origin ${origin} is not in ALLOWED_ORIGINS`);
+        throw new ServiceError('forbidden');
+      }
       if (origin) { response.setHeader('Access-Control-Allow-Origin', origin); response.setHeader('Vary', 'Origin'); }
       if (request.method === 'OPTIONS') {
         response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
@@ -93,7 +118,7 @@ export function createApi(options: ApiOptions) {
       // Bound memory and request work before contacting the identity provider.
       const now = Date.now();
       for (const [key, value] of limits) if (value.until <= now) limits.delete(key);
-      const ip = request.socket.remoteAddress ?? 'unknown';
+      const ip = clientAddress(request, options.trustProxy ?? false);
       const rate = limits.get(ip) ?? { count: 0, until: now + 60_000 };
       if (++rate.count > 300) throw new ServiceError('rate_limited');
       limits.set(ip, rate);
@@ -107,6 +132,16 @@ export function createApi(options: ApiOptions) {
           }
           throw new ServiceError('unavailable');
         }
+        const receiptMatch = path.match(RECEIPT_PATH);
+        if (receiptMatch) {
+          if (request.method !== 'GET' || !options.receipts) throw new ServiceError('not_found');
+          // Only members of the group whose expense references the receipt may read it.
+          const allowed = await read((db) => db.expenses.some((e) => e.receiptUrl === path &&
+            db.groups.some((g) => g.id === e.groupId && g.members.some((m) => m.userId === identity.userId))));
+          const uri = allowed ? options.receipts.get(receiptMatch[1]) : null;
+          if (!uri) throw new ServiceError('not_found');
+          send(200, { uri }); return;
+        }
         const key = path.replace(/^\/rpc\//, '');
         if (request.method !== 'POST' || !path.startsWith('/rpc/') || !Object.hasOwn(operations, key)) throw new ServiceError('not_found');
         if (!request.headers['content-type']?.startsWith('application/json')) throw new ServiceError('validation');
@@ -119,8 +154,22 @@ export function createApi(options: ApiOptions) {
         }
         const body = z.object({ args: z.array(z.unknown()).max(3) }).strict().parse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
         if (key === 'expenses/createExpense' || key === 'expenses/updateExpense') {
-          const input = expenseInputSchema.parse(body.args[key === 'expenses/createExpense' ? 0 : 1]);
-          if (input.receiptUrl && !validReceipt(input.receiptUrl)) throw new ServiceError('validation');
+          const index = key === 'expenses/createExpense' ? 0 : 1;
+          const input = expenseInputSchema.parse(body.args[index]);
+          const receipt = input.receiptUrl;
+          if (receipt?.startsWith('data:')) {
+            if (!validReceipt(receipt)) throw new ServiceError('validation');
+            if (options.receipts) {
+              // Check membership first so non-members can't fill the receipt store.
+              if (!(await isGroupMember(input.groupId, identity.userId))) throw new ServiceError('forbidden');
+              const stored = `${RECEIPT_PREFIX}${options.receipts.put(receipt)}`;
+              body.args[index] = { ...(body.args[index] as Record<string, unknown>), receiptUrl: stored };
+            }
+          } else if (receipt) {
+            // Only an edit may keep the stored receipt that expense already has.
+            const current = key === 'expenses/updateExpense' ? await read((db) => db.expenses.find((e) => e.id === body.args[0])?.receiptUrl) : undefined;
+            if (receipt !== current) throw new ServiceError('validation');
+          }
         }
         if (key === 'users/deleteAccountData' && options.deleteIdentity) {
           none.parse(body.args);
@@ -152,26 +201,52 @@ function validReceipt(uri: string): boolean {
   return bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
 }
 
+/** Moves receipts saved before the receipt table existed out of the ledger. */
+export async function migrateInlineReceipts(receipts: ReceiptStore): Promise<number> {
+  return write((db) => {
+    let moved = 0;
+    for (const expense of db.expenses) {
+      if (!expense.receiptUrl?.startsWith('data:')) continue;
+      expense.receiptUrl = `${RECEIPT_PREFIX}${receipts.put(expense.receiptUrl)}`;
+      moved++;
+    }
+    return moved;
+  });
+}
+
+/** Deletes stored receipts whose expense was deleted or edited, after a day's grace. */
+export async function pruneReceipts(receipts: ReceiptStore) {
+  const referenced = await read((db) => db.expenses.flatMap((e) => e.receiptUrl?.startsWith(RECEIPT_PREFIX) ? [e.receiptUrl.slice(RECEIPT_PREFIX.length)] : []));
+  receipts.prune(new Set(referenced), 24 * 60 * 60 * 1000);
+}
+
 /** Scheduled by the single server process, independent of whether the app is open. */
 export async function processRecurring(getSubscription?: ApiOptions['getSubscription']) {
-  const profiles = await read((db) => Object.values(db.profiles));
+  const profiles = await read((db) => {
+    const owners = new Set(db.recurring.filter((r) => Date.parse(r.nextDate) <= Date.now()).map((r) => r.createdBy));
+    return Object.values(db.profiles).filter((p) => owners.has(p.id) && !db.pendingDeletions[p.id]);
+  });
+  let failed = 0;
   for (const profile of profiles) {
-    await session.run({ userId: profile.id, name: profile.name, email: profile.email, createdAt: profile.createdAt }, async () => {
+    try { await session.run({ userId: profile.id, name: profile.name, email: profile.email, createdAt: profile.createdAt }, async () => {
       if (getSubscription) {
         const subscription = await getSubscription(profile.id);
         await write((db) => { db.subscriptions[profile.id] = subscription; });
       }
       await localRecurringService.processDue();
-    });
+    }); } catch { failed++; }
   }
+  if (failed) throw new Error(`Recurring processing failed for ${failed} account(s)`);
 }
 
 export async function processDeletions(deleteIdentity: NonNullable<ApiOptions['deleteIdentity']>) {
   const jobs = await read((db) => Object.values(db.pendingDeletions));
+  let failed = 0;
   for (const identity of jobs) {
-    await session.run(identity, async () => {
+    try { await session.run(identity, async () => {
       await deleteIdentity(identity.userId);
       await localUsersService.deleteAccountData();
-    });
+    }); } catch { failed++; }
   }
+  if (failed) throw new Error(`Deletion processing failed for ${failed} account(s)`);
 }

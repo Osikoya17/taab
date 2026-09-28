@@ -89,11 +89,11 @@ export function SplitBreakdown({ method, onMethodChange, participants, values, o
                     {name}
                   </Text>
                   {method !== 'equal' && method !== 'exact' && amount !== undefined ? (
-                    <Money amount={amount} currency={currency} size="small" tone="muted" />
+                    <Money amount={amount} currency={currency} size="small" tone="muted" convert={false} />
                   ) : null}
                 </View>
                 {method === 'equal' ? (
-                  amount !== undefined ? <Money amount={amount} currency={currency} size="body" /> : null
+                  amount !== undefined ? <Money amount={amount} currency={currency} size="body" convert={false} /> : null
                 ) : (
                   <ValueInput
                     method={method}

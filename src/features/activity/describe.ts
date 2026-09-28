@@ -1,4 +1,4 @@
-import type { ActivityEvent } from '@/types/models';
+import type { ActivityEvent, CurrencyCode, MinorUnits } from '@/types/models';
 import { formatMoney } from '@/utils/money';
 
 export type ActivityDescription = {
@@ -11,11 +11,18 @@ export type ActivityDescription = {
   kind: 'expense' | 'payment' | 'member' | 'group' | 'reminder' | 'removed';
 };
 
-/** Turns a raw event into short, social copy from the viewer's perspective. */
-export function describeActivity(event: ActivityEvent, meId: string): ActivityDescription {
+/**
+ * Turns a raw event into short, social copy from the viewer's perspective.
+ * `format` lets the screen show amounts in the viewer's display currency.
+ */
+export function describeActivity(
+  event: ActivityEvent,
+  meId: string,
+  format: (amount: MinorUnits, currency: CurrencyCode) => string = formatMoney,
+): ActivityDescription {
   const actor = event.actorId === meId ? 'You' : event.actorName;
   const target = event.targetUserId === meId ? 'you' : (event.targetName ?? 'someone');
-  const money = event.amount !== undefined && event.currency ? formatMoney(event.amount, event.currency) : '';
+  const money = event.amount !== undefined && event.currency ? format(event.amount, event.currency) : '';
 
   switch (event.type) {
     case 'expense_created':

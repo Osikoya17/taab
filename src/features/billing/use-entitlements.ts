@@ -14,7 +14,7 @@ import { FREE_SUBSCRIPTION, type SubscriptionStatus } from './types';
 
 export function useSubscription() {
   const { isSignedIn } = useAuthSession();
-  return useQuery({ queryKey: queryKeys.subscription, queryFn: billingService.getSubscription, enabled: isSignedIn });
+  return useQuery({ queryKey: queryKeys.subscription, queryFn: () => billingService.getSubscription(), enabled: isSignedIn });
 }
 
 /**

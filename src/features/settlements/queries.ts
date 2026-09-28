@@ -27,7 +27,7 @@ export function useReminderStatus(groupId: string | undefined, userId: string | 
 
 export function useSendReminder() {
   return useMutation({
-    mutationFn: remindersService.sendReminder,
+    mutationFn: (input: Parameters<typeof remindersService.sendReminder>[0]) => remindersService.sendReminder(input),
     onSuccess: (_reminder, input) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.reminder(input.groupId, input.toUserId) });
       queryClient.invalidateQueries({ queryKey: ['activity'] });

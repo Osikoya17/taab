@@ -12,6 +12,7 @@ import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { useGroup, useInviteMembers } from '@/features/groups/queries';
 import { haptics } from '@/lib/haptics';
+import { captureEvent } from '@/lib/posthog';
 import { groupsService } from '@/services/groups.service';
 import { toast } from '@/store/toast.store';
 import { useGoBack } from '@/hooks/use-go-back';
@@ -29,9 +30,11 @@ export default function InviteScreen() {
       const link = await groupsService.getInviteLink(id);
       if (copy) {
         await Clipboard.setStringAsync(link);
+        captureEvent('invite_link_shared', { share_method: 'copy' });
         toast.show('Invite link copied');
       } else {
         await Share.share({ message: `Join ${name} on taab so we can split bills easily: ${link}` });
+        captureEvent('invite_link_shared', { share_method: 'native_share' });
       }
     } catch {
       toast.error('Couldn’t create an invite link', 'Check your connection and try again.');
@@ -41,6 +44,7 @@ export default function InviteScreen() {
   async function send() {
     try {
       await invite.mutateAsync(invites.map(({ key: _key, label: _label, detail: _detail, ...i }) => i));
+      captureEvent('members_invited', { invited_member_count: invites.length });
       haptics.success();
       toast.success(invites.length === 1 ? `${invites[0].label} added` : `${invites.length} people added`);
       goBack(`/group/${id}`);

@@ -1,6 +1,7 @@
 import { Text as RNText, type StyleProp, type TextStyle } from 'react-native';
 
 import { colors, fonts } from '@/constants/theme';
+import { useDisplayCurrency } from '@/features/currency/display';
 import { useAnimatedNumber } from '@/hooks/use-animated-number';
 import type { CurrencyCode, MinorUnits } from '@/types/models';
 import { formatMoney, minorFactor, type FormatMoneyOptions } from '@/utils/money';
@@ -31,11 +32,18 @@ export type MoneyProps = {
   fraction?: FormatMoneyOptions['fraction'];
   /** Gently count to new values (balances). */
   animated?: boolean;
+  /**
+   * Show the amount in the viewer's display currency (default). Turn off where
+   * the amount is being entered, so it stays in the currency being typed.
+   */
+  convert?: boolean;
   style?: StyleProp<TextStyle>;
 };
 
 /** Every amount in the app renders through here, with tabular figures. */
-export function Money({ amount, currency, size = 'body', tone = 'ink', sign = 'auto', fraction = 'auto', animated = false, style }: MoneyProps) {
+export function Money({ amount: ledgerAmount, currency: ledgerCurrency, size = 'body', tone = 'ink', sign = 'auto', fraction = 'auto', animated = false, convert = true, style }: MoneyProps) {
+  const { convert: toDisplay } = useDisplayCurrency();
+  const { amount, currency } = convert ? toDisplay(ledgerAmount, ledgerCurrency) : { amount: ledgerAmount, currency: ledgerCurrency };
   const tweened = useAnimatedNumber(amount);
   // While counting, step in whole units when the final value is whole, so
   // ₦48,000 never flickers through ₦47,597.52 on the way.

@@ -1,10 +1,11 @@
 import { z } from 'zod';
 
+import { convertMinor, rateBetween, type ExchangeRates } from '@/features/currency/rates';
 import type { ExpenseInput } from '@/services/expenses.service';
-import type { CurrencyCode, Expense, ExpenseCategory, Group, MinorUnits, SplitMethod } from '@/types/models';
+import type { CurrencyCode, Expense, ExpenseCategory, ExpenseSplit, Group, MinorUnits, SplitMethod } from '@/types/models';
 import { formatMoney, parseMoneyInput, toInputString } from '@/utils/money';
 
-import { basisPointsToPercentString, computeSplit, percentToBasisPoints, resolvePayers, type SplitInput } from './split';
+import { allocateProportionally, basisPointsToPercentString, computeSplit, percentToBasisPoints, resolvePayers, type SplitInput } from './split';
 
 export const expenseFormSchema = z.object({
   groupId: z.string().min(1, 'Choose a taab'),
@@ -131,6 +132,38 @@ export function previewSplit(values: Pick<ExpenseFormValues, 'amount' | 'partici
     case 'no_shares':
       return { ok: false, message: 'Give at least one person a share', amounts: partial };
   }
+}
+
+/**
+ * Re-expresses an expense typed in another currency in the taab's currency.
+ * The total is converted once; shares and payer amounts are then rebuilt from
+ * it with the same largest-remainder maths the server re-checks, so everything
+ * still adds up to the exact total. Returns null if it rounds to nothing.
+ */
+export function convertExpenseInput(input: ExpenseInput, from: CurrencyCode, to: CurrencyCode, rates: ExchangeRates): ExpenseInput | null {
+  if (from === to) return input;
+  const amount = convertMinor(input.amount, from, to, rates);
+  if (amount <= 0) return null;
+
+  const paid = allocateProportionally(amount, input.paidBy.map((p) => p.amount));
+  let splitBetween: ExpenseSplit[];
+  if (input.splitMethod === 'exact') {
+    const parts = allocateProportionally(amount, input.splitBetween.map((s) => s.amount));
+    splitBetween = input.splitBetween.map((s, i) => ({ userId: s.userId, amount: parts[i], value: parts[i] }));
+  } else {
+    // Equal, percentage and shares don't depend on the currency: re-run the split.
+    const result = computeSplit(amount, input.splitMethod, input.splitBetween.map((s) => ({ userId: s.userId, value: s.value })));
+    if (!result.ok) return null;
+    splitBetween = result.splits;
+  }
+
+  return {
+    ...input,
+    amount,
+    paidBy: input.paidBy.map((p, i) => ({ userId: p.userId, amount: paid[i] })),
+    splitBetween,
+    original: { amount: input.amount, currency: from, rate: rateBetween(from, to, rates) },
+  };
 }
 
 export type BuildResult =

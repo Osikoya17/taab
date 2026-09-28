@@ -15,6 +15,7 @@ export const queryKeys = {
   notificationPreferences: ['notifications', 'preferences'] as const,
   subscription: ['subscription'] as const,
   people: (query: string) => ['people', query] as const,
+  exchangeRates: ['exchange-rates', 'USD'] as const,
 };
 
 /** Everything derived from the ledger — refresh after any money change. */

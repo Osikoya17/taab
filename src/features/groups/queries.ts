@@ -4,7 +4,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { groupsService, type CreateGroupInput, type Invite } from '@/services/groups.service';
 
 export function useGroups() {
-  return useQuery({ queryKey: queryKeys.groups, queryFn: groupsService.listGroups });
+  return useQuery({ queryKey: queryKeys.groups, queryFn: () => groupsService.listGroups() });
 }
 
 export function useGroup(groupId: string | undefined) {

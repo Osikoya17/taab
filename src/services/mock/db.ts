@@ -27,11 +27,32 @@ export type MockDatabase = {
   notifications: Record<string, AppNotification[]>;
   notificationPreferences: Record<string, NotificationPreferences>;
   subscriptions: Record<string, SubscriptionState>;
-  pushTokens: Record<string, string>;
+  /** Each account's devices, oldest first. */
+  pushTokens: Record<string, string[]>;
   inviteLinks: Record<string, { groupId: string; expiresAt: string }>;
   pendingDeletions: Record<string, { userId: string; email: string; name: string; createdAt: string }>;
-  pushOutbox: Record<string, { userId: string; notificationId: string; attempts: number; nextAttemptAt: string; ticketId?: string }>;
+  pushOutbox: Record<string, PushJob>;
 };
+
+export type PushJob = {
+  userId: string;
+  notificationId: string;
+  attempts: number;
+  nextAttemptAt: string;
+  /** Tickets awaiting a delivery receipt, with the device each was sent to. */
+  tickets?: { id: string; token: string }[];
+  /** Legacy single-device receipt fields. */
+  ticketId?: string;
+  sentToken?: string;
+};
+
+/** Older stores kept one push token per account as a plain string. */
+function upgrade(database: MockDatabase): MockDatabase {
+  for (const [userId, tokens] of Object.entries(database.pushTokens) as [string, string[] | string][]) {
+    if (typeof tokens === 'string') database.pushTokens[userId] = [tokens];
+  }
+  return database;
+}
 
 const STORAGE_KEY = 'taab.mock-db.v1';
 
@@ -82,7 +103,7 @@ async function load(): Promise<MockDatabase> {
         const raw = await storage.getItem(STORAGE_KEY);
         const parsed = raw ? (JSON.parse(raw) as MockDatabase) : null;
         if (parsed && parsed.version !== 1) throw new Error('Unsupported database version');
-        db = parsed ? { ...emptyDatabase(), ...parsed } : emptyDatabase();
+        db = parsed ? upgrade({ ...emptyDatabase(), ...parsed }) : emptyDatabase();
       } catch (error) {
         loading = null;
         throw error;

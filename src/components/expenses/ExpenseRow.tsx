@@ -9,7 +9,7 @@ import { categoryMeta } from '@/features/expenses/categories';
 import type { ExpenseListItem } from '@/services/expenses.service';
 import type { Group, Settlement } from '@/types/models';
 import { dayLabel } from '@/utils/dates';
-import { formatMoney } from '@/utils/money';
+import { useDisplayCurrency } from '@/features/currency/display';
 
 function nameOf(group: Group, userId: string, meId: string) {
   if (userId === meId) return 'You';
@@ -19,17 +19,18 @@ function nameOf(group: Group, userId: string, meId: string) {
 /** "Dinner · Yesterday · You paid ₦48,000 — Your share ₦12,000" */
 export function ExpenseRow({ item, group, meId, onPress }: { item: ExpenseListItem; group: Group; meId: string; onPress: () => void }) {
   const { expense, myShare, status } = item;
+  const { format } = useDisplayCurrency();
   const Icon = categoryMeta(expense.category).icon;
   const payers = expense.paidBy.filter((p) => p.amount > 0);
   const paidCopy =
     payers.length === 1
-      ? `${nameOf(group, payers[0].userId, meId)} paid ${formatMoney(expense.amount, expense.currency)}`
-      : `${payers.length} people paid ${formatMoney(expense.amount, expense.currency)}`;
+      ? `${nameOf(group, payers[0].userId, meId)} paid ${format(expense.amount, expense.currency)}`
+      : `${payers.length} people paid ${format(expense.amount, expense.currency)}`;
 
   return (
     <PressableScale
       onPress={onPress}
-      accessibilityLabel={`${expense.title}, ${dayLabel(expense.date)}, ${paidCopy}, your share ${formatMoney(myShare, expense.currency)}`}
+      accessibilityLabel={`${expense.title}, ${dayLabel(expense.date)}, ${paidCopy}, your share ${format(myShare, expense.currency)}`}
       pressedScale={0.99}
       className="flex-row items-center gap-3 py-3">
       <View className="h-11 w-11 items-center justify-center rounded-2xl border border-line bg-surface">
@@ -68,10 +69,11 @@ export function ExpenseRow({ item, group, meId, onPress }: { item: ExpenseListIt
 
 /** Payments appear inline in the group feed so the story reads in order. */
 export function SettlementRow({ settlement, group, meId }: { settlement: Settlement; group: Group; meId: string }) {
+  const { format } = useDisplayCurrency();
   const from = nameOf(group, settlement.fromUserId, meId);
   const to = settlement.toUserId === meId ? 'you' : nameOf(group, settlement.toUserId, meId);
   return (
-    <View className="flex-row items-center gap-3 py-3" accessible accessibilityLabel={`${from} paid ${to} ${formatMoney(settlement.amount, settlement.currency)}`}>
+    <View className="flex-row items-center gap-3 py-3" accessible accessibilityLabel={`${from} paid ${to} ${format(settlement.amount, settlement.currency)}`}>
       <View className="h-11 w-11 items-center justify-center rounded-2xl bg-sunken">
         <ArrowRightLeft size={17} color={colors.muted} strokeWidth={1.8} />
       </View>

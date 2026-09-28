@@ -5,6 +5,7 @@ import { Money } from '@/components/ui/Money';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Text } from '@/components/ui/Text';
 import { describeActivity } from '@/features/activity/describe';
+import { useDisplayCurrency } from '@/features/currency/display';
 import type { ActivityEvent } from '@/types/models';
 import { relativeTime } from '@/utils/dates';
 
@@ -17,7 +18,8 @@ export type ActivityRowProps = {
 };
 
 export function ActivityRow({ event, meId, showGroup = true, onPress }: ActivityRowProps) {
-  const d = describeActivity(event, meId);
+  const { format } = useDisplayCurrency();
+  const d = describeActivity(event, meId, format);
   const meta = [showGroup ? event.groupName : null, relativeTime(event.createdAt)].filter(Boolean).join(' • ');
   const moneyTone = d.tone === 'positive' ? 'positive' : d.tone === 'negative' ? 'negative' : d.tone === 'muted' ? 'muted' : 'ink';
 
