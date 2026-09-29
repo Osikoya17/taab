@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react-native';
 import { View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { useDisplayCurrency } from '@/features/currency/display';
 import type { CurrencyCode, MinorUnits } from '@/types/models';
 import { formatMoney } from '@/utils/money';
@@ -32,6 +32,7 @@ export function balanceCopy(amount: MinorUnits, currency: CurrencyCode, groupSet
 type MoneyFormatter = (amount: MinorUnits, currency: CurrencyCode) => string;
 
 export function BalanceBadge({ amount, currency, appearance = 'inline', groupSettled = true }: BalanceBadgeProps) {
+  const colors = useColors();
   const { format } = useDisplayCurrency();
   const tone = amount > 0 ? 'positive' : amount < 0 ? 'negative' : 'muted';
   const copy = balanceCopy(amount, currency, groupSettled, format);

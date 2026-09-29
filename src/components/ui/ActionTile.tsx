@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { cx } from '@/utils/cx';
 
 import { PressableScale } from './PressableScale';
@@ -23,6 +23,7 @@ export function ActionTile({
   onPress: () => void;
   primary?: boolean;
 }) {
+  const colors = useColors();
   return (
     <PressableScale onPress={onPress} accessibilityLabel={accessibilityLabel ?? label} pressedScale={0.95} className="flex-1 items-center gap-1.5">
       <View className={cx('h-14 w-full items-center justify-center rounded-[20px]', primary ? 'bg-ink' : 'border border-line bg-surface')}>

@@ -2,7 +2,7 @@ import { ChevronRight, type LucideIcon } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 import { PressableScale } from './PressableScale';
 import { Text } from './Text';
@@ -21,6 +21,7 @@ export type ListRowProps = {
 
 /** Settings-style row. Group several inside one Surface with Dividers. */
 export function ListRow({ title, detail, icon: Icon, value, onPress, trailing, destructive, showChevron = !!onPress }: ListRowProps) {
+  const colors = useColors();
   const content = (
     <View className="min-h-[56px] flex-row items-center gap-3 px-4 py-3">
       {Icon ? (

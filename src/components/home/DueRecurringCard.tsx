@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { useResolveDue } from '@/features/recurring/queries';
 import { haptics } from '@/lib/haptics';
 import { toast } from '@/store/toast.store';
@@ -13,6 +13,7 @@ import { useDisplayCurrency } from '@/features/currency/display';
 
 /** "Netflix is due — add it?" for recurring rules that ask first. */
 export function DueRecurringCard({ rule }: { rule: RecurringExpense }) {
+  const colors = useColors();
   const resolve = useResolveDue();
   const { format } = useDisplayCurrency();
   const busy = resolve.isPending;

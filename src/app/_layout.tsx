@@ -10,6 +10,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { useColorScheme } from 'nativewind';
 import { useEffect, useRef, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
@@ -18,10 +19,11 @@ import { SplashOverlay } from '@/components/brand/SplashOverlay';
 import { ToastHost } from '@/components/ui/Toast';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Screen } from '@/components/ui/Screen';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { useAuthSession } from '@/features/auth/auth-context';
 import { AuthProvider } from '@/features/auth/auth-provider';
 import { useNotificationRouting } from '@/features/notifications/routing';
+import { useApplyAppearance } from '@/hooks/use-appearance';
 import { useProfile } from '@/features/profile/queries';
 import { queryClient, queryPersister, wireQueryEnvironment } from '@/lib/query-client';
 import { usePreferences } from '@/store/preferences.store';
@@ -72,6 +74,7 @@ function PostHogIdentitySync() {
 }
 
 function RootNavigator({ onReady }: { onReady: (ready: boolean) => void }) {
+  const colors = useColors();
   const router = useRouter();
   const pendingInvite = usePreferences((s) => s.pendingInvite);
   const { isSignedIn } = useAuthSession();
@@ -139,6 +142,7 @@ function RootNavigator({ onReady }: { onReady: (ready: boolean) => void }) {
  * account changes, so one person never sees another's cached taabs.
  */
 function AppShell({ fontsLoaded }: { fontsLoaded: boolean }) {
+  const { colorScheme } = useColorScheme();
   const { isLoaded, user } = useAuthSession();
   const [navReady, setNavReady] = useState(false);
   const userId = user?.id ?? 'signed-out';
@@ -160,7 +164,7 @@ function AppShell({ fontsLoaded }: { fontsLoaded: boolean }) {
 
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       {isLoaded && fontsLoaded ? (
         <PersistQueryClientProvider
           key={userId}
@@ -176,6 +180,8 @@ function AppShell({ fontsLoaded }: { fontsLoaded: boolean }) {
 }
 
 export default function RootLayout() {
+  const colors = useColors();
+  useApplyAppearance();
   const [fontsLoaded, fontError] = useFonts({ Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_700Bold });
 
   return (

@@ -1,6 +1,6 @@
 import type { ActivityEvent } from '@/types/models';
 
-import { describeActivity } from './describe';
+import { describeActivity, isMoneyEvent } from './describe';
 
 const base: ActivityEvent = {
   id: 'a1',
@@ -34,5 +34,10 @@ describe('describeActivity', () => {
     expect(
       describeActivity({ ...base, type: 'reminder_sent', actorId: 'me', targetUserId: 'u_dami', targetName: 'Dami' }, 'me').title,
     ).toBe('You reminded Dami');
+  });
+
+  it('keeps only expenses and payments in the Expenses tab', () => {
+    const kinds = ['expense_created', 'expense_edited', 'expense_deleted', 'payment_recorded', 'member_joined', 'group_created', 'reminder_sent'] as const;
+    expect(kinds.filter((type) => isMoneyEvent({ ...base, type }))).toEqual(['expense_created', 'expense_edited', 'expense_deleted', 'payment_recorded']);
   });
 });

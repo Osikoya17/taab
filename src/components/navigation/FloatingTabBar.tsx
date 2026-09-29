@@ -1,19 +1,22 @@
 import { BlurView } from 'expo-blur';
+import { useColorScheme } from 'nativewind';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { Activity, House, Layers, Plus, UserRound, type LucideIcon } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { House, Layers, Plus, ReceiptText, UserRound, type LucideIcon } from 'lucide-react-native';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Keyboard, Platform, Pressable, StyleSheet, Text as RNText, View, type LayoutRectangle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, floatingShadow, fonts, radii, TAB_BAR_HEIGHT } from '@/constants/theme';
+import { TourTarget } from '@/components/tour/TourTarget';
+import { floatingShadow, fonts, radii, TAB_BAR_HEIGHT, useColors } from '@/constants/theme';
+import type { TourTargetId } from '@/features/tour/targets';
 
 const TAB_META: Record<string, { label: string; icon: LucideIcon }> = {
   index: { label: 'Home', icon: House },
   groups: { label: 'Groups', icon: Layers },
-  activity: { label: 'Activity', icon: Activity },
+  activity: { label: 'Expenses', icon: ReceiptText },
   profile: { label: 'Profile', icon: UserRound },
 };
 
@@ -29,6 +32,9 @@ const USE_BLUR = Platform.OS !== 'android';
  * translucent fill, which reads the same and stays at 60fps on every device.
  */
 export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
+  const colors = useColors();
+  const { colorScheme } = useColorScheme();
+  const glass = GLASS[colorScheme === 'dark' ? 'dark' : 'light'];
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [layouts, setLayouts] = useState<Record<string, LayoutRectangle>>({});
@@ -107,10 +113,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         accessibilityLabel={meta.label}
         accessibilityState={{ selected: focused }}
         style={styles.tab}>
-        <Icon size={21} color={focused ? colors.ink : colors.faint} strokeWidth={focused ? 2.1 : 1.8} />
-        <RNText allowFontScaling={false} numberOfLines={1} style={[styles.label, { color: focused ? colors.ink : colors.faint }]}>
-          {meta.label}
-        </RNText>
+        <TabContent tourId={TOUR_IDS[route.name]}>
+          <Icon size={21} color={focused ? colors.ink : colors.faint} strokeWidth={focused ? 2.1 : 1.8} />
+          <RNText allowFontScaling={false} numberOfLines={1} style={[styles.label, { color: focused ? colors.ink : colors.faint }]}>
+            {meta.label}
+          </RNText>
+        </TabContent>
       </Pressable>
     );
   });
@@ -124,18 +132,20 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       accessibilityLabel="Add expense"
       style={styles.tab}>
       {({ pressed }) => (
-        <View
-          style={{
-            width: 46,
-            height: 46,
-            borderRadius: 18,
-            backgroundColor: colors.ink,
-            alignItems: 'center',
-            justifyContent: 'center',
-            transform: [{ scale: pressed ? 0.94 : 1 }],
-          }}>
-          <Plus size={22} color={colors.canvas} strokeWidth={2.2} />
-        </View>
+        <TourTarget id="add">
+          <View
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 18,
+              backgroundColor: colors.ink,
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            }}>
+            <Plus size={22} color={colors.canvas} strokeWidth={2.2} />
+          </View>
+        </TourTarget>
       )}
     </Pressable>
   );
@@ -146,22 +156,61 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     <Animated.View
       pointerEvents={keyboardVisible ? 'none' : 'box-none'}
       style={[styles.wrapper, { bottom }, floatingShadow, containerStyle]}>
-      <View style={styles.slab}>
-        {USE_BLUR ? <BlurView intensity={48} tint="light" style={StyleSheet.absoluteFill} /> : null}
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: USE_BLUR ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.94)' }]} />
+      <View style={[styles.slab, { borderColor: glass.border }]}>
+        {USE_BLUR ? <BlurView intensity={48} tint={glass.tint} style={StyleSheet.absoluteFill} /> : null}
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: USE_BLUR ? glass.fill : glass.solidFill }]} />
         {/* Faint vertical sheen gives the slab thickness. */}
         <LinearGradient
-          colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
+          colors={glass.sheen}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 0.7 }}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        <View pointerEvents="none" style={styles.topHighlight} />
-        <Animated.View pointerEvents="none" style={[styles.indicator, indicatorStyle]} />
+        <View pointerEvents="none" style={[styles.topHighlight, { backgroundColor: glass.highlight }]} />
+        <Animated.View pointerEvents="none" style={[styles.indicator, { backgroundColor: glass.indicator }, indicatorStyle]} />
         <View style={styles.row}>{items}</View>
       </View>
     </Animated.View>
+  );
+}
+
+/**
+ * The frosted slab per theme. Light: translucent white over the page with a
+ * bright top edge. Dark: smoked glass one step above the page, with only a
+ * faint edge so it doesn't glow.
+ */
+const GLASS = {
+  light: {
+    tint: 'light',
+    fill: 'rgba(255,255,255,0.62)',
+    solidFill: 'rgba(255,255,255,0.94)',
+    sheen: ['rgba(255,255,255,0.55)', 'rgba(255,255,255,0)'],
+    border: 'rgba(17,17,17,0.09)',
+    highlight: 'rgba(255,255,255,0.95)',
+    indicator: 'rgba(17,17,17,0.055)',
+  },
+  dark: {
+    tint: 'dark',
+    fill: 'rgba(27,27,25,0.62)',
+    solidFill: 'rgba(27,27,25,0.96)',
+    sheen: ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0)'],
+    border: 'rgba(255,255,255,0.08)',
+    highlight: 'rgba(255,255,255,0.10)',
+    indicator: 'rgba(255,255,255,0.08)',
+  },
+} as const;
+
+/** Tabs the first-run tour points at. */
+const TOUR_IDS: Record<string, TourTargetId | undefined> = { groups: 'groups', activity: 'expenses' };
+
+/** A tab's icon and label, marked for the tour when it has a target id. */
+function TabContent({ tourId, children }: { tourId?: TourTargetId; children: ReactNode }) {
+  if (!tourId) return <>{children}</>;
+  return (
+    <TourTarget id={tourId} style={{ alignItems: 'center', paddingHorizontal: 6 }}>
+      {children}
+    </TourTarget>
   );
 }
 
@@ -178,7 +227,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.nav,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(17,17,17,0.09)',
   },
   topHighlight: {
     position: 'absolute',
@@ -186,7 +234,6 @@ const styles = StyleSheet.create({
     left: 24,
     right: 24,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.95)',
   },
   indicator: {
     position: 'absolute',
@@ -194,7 +241,6 @@ const styles = StyleSheet.create({
     bottom: 8,
     left: 0,
     borderRadius: 20,
-    backgroundColor: 'rgba(17,17,17,0.055)',
   },
   row: {
     flex: 1,

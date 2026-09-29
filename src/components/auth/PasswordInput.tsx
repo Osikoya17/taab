@@ -3,9 +3,10 @@ import { useState, type Ref } from 'react';
 import { Pressable, type TextInput } from 'react-native';
 
 import { FormInput, type FormInputProps } from '@/components/ui/FormInput';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 export function PasswordInput({ ref, ...props }: Omit<FormInputProps, 'secureTextEntry' | 'trailing'> & { ref?: Ref<TextInput> }) {
+  const colors = useColors();
   const [visible, setVisible] = useState(false);
   return (
     <FormInput

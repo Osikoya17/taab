@@ -4,7 +4,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { useAuthActions, useAuthSession } from '@/features/auth/auth-context';
 import type { OAuthProvider } from '@/features/auth/types';
 import { env } from '@/lib/env';
@@ -34,6 +34,7 @@ function AppleMark({ color }: { color: string }) {
 
 /** Google and (on Apple platforms) Sign in with Apple. */
 export function SocialButtons() {
+  const colors = useColors();
   const actions = useAuthActions();
   const [pending, setPending] = useState<OAuthProvider | null>(null);
   const { mode } = useAuthSession();

@@ -36,6 +36,9 @@ yarn-error.*
 .env.server
 .data/
 
+# server bundle (npm run server:build)
+/build/
+
 # typescript
 *.tsbuildinfo
 

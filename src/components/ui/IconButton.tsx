@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { cx } from '@/utils/cx';
 
 import { PressableScale } from './PressableScale';
@@ -31,6 +31,7 @@ export function IconButton({
   disabled,
   className,
 }: IconButtonProps) {
+  const colors = useColors();
   return (
     <PressableScale
       onPress={onPress}

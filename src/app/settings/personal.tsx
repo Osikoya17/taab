@@ -10,13 +10,14 @@ import { FormInput } from '@/components/ui/FormInput';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { useAuthActions, useAuthSession } from '@/features/auth/auth-context';
 import { useProfile, useUpdateProfile } from '@/features/profile/queries';
 import { toast } from '@/store/toast.store';
 import { useGoBack } from '@/hooks/use-go-back';
 
 export default function PersonalDetailsScreen() {
+  const colors = useColors();
   const goBack = useGoBack();
   const { user } = useAuthSession();
   const actions = useAuthActions();

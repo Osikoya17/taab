@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Pressable } from 'react-native';
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 export type ToggleProps = {
   value: boolean;
@@ -17,6 +17,7 @@ const KNOB = 22;
 
 /** A calm custom switch that matches the taab palette on both platforms. */
 export function Toggle({ value, onValueChange, accessibilityLabel, disabled }: ToggleProps) {
+  const colors = useColors();
   const progress = useSharedValue(value ? 1 : 0);
 
   useEffect(() => {

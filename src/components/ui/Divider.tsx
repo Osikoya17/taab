@@ -1,8 +1,9 @@
 import { StyleSheet, View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 export function Divider({ inset = 0, spacing = 0 }: { inset?: number; spacing?: number }) {
+  const colors = useColors();
   return (
     <View
       importantForAccessibility="no"

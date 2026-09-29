@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Avatar } from '@/components/ui/Avatar';
 import { Money } from '@/components/ui/Money';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import type { MemberBalance } from '@/services/groups.service';
 import type { CurrencyCode } from '@/types/models';
 
@@ -12,6 +12,7 @@ import type { CurrencyCode } from '@/types/models';
  * and a word ("gets back" / "owes") makes it readable without colour.
  */
 export function MemberBalances({ balances, currency, meId }: { balances: MemberBalance[]; currency: CurrencyCode; meId: string }) {
+  const colors = useColors();
   const max = Math.max(1, ...balances.map((b) => Math.abs(b.amount)));
   const sorted = [...balances].sort((a, b) => (a.userId === meId ? -1 : b.userId === meId ? 1 : b.amount - a.amount));
 

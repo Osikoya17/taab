@@ -6,6 +6,8 @@ import { ActivityRow } from '@/components/activity/ActivityRow';
 import { GroupCard } from '@/components/groups/GroupCard';
 import { BalanceHero } from '@/components/home/BalanceHero';
 import { DueRecurringCard } from '@/components/home/DueRecurringCard';
+import { AppTour } from '@/components/tour/AppTour';
+import { TourTarget } from '@/components/tour/TourTarget';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -19,6 +21,7 @@ import { BalanceSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { DEFAULT_CURRENCY } from '@/constants/currencies';
+import { isMoneyEvent } from '@/features/activity/describe';
 import { useActivityFeed } from '@/features/activity/queries';
 import { useAuthSession } from '@/features/auth/auth-context';
 import { useDisplayCurrency } from '@/features/currency/display';
@@ -47,7 +50,7 @@ export default function HomeScreen() {
   const preferredCurrency = display ?? profile?.defaultCurrency ?? DEFAULT_CURRENCY;
   const rates = useExchangeRates(!!groups.data && needsConversion(groups.data, preferredCurrency));
   const overview = groups.data ? buildOverview(groups.data, meId, preferredCurrency, rates.data) : null;
-  const recentEvents = activity.data?.pages[0]?.items.slice(0, 5) ?? [];
+  const recentEvents = (activity.data?.pages.flatMap((p) => p.items) ?? []).filter(isMoneyEvent).slice(0, 5);
   const hasGroups = (groups.data?.length ?? 0) > 0;
 
   const header = (
@@ -85,6 +88,8 @@ export default function HomeScreen() {
           }}
         />
       }>
+      {/* First-run walkthrough; waits until the screen it points at has loaded. */}
+      <AppTour ready={groups.isSuccess} />
       {groups.isPending ? (
         <View className="gap-6 pt-4">
           <BalanceSkeleton />
@@ -99,21 +104,26 @@ export default function HomeScreen() {
           title="Nothing to split yet."
           description={`Create a taab with friends and add your first expense — like “${emptyStateExample(profile?.useCase)}”.`}
           actionLabel="Create a taab"
+          actionTourId="create"
           onAction={() => router.push('/group/new')}
         />
       ) : (
         <>
           <View className="pt-4">
-            {overview ? <BalanceHero overview={overview} selectedCurrency={preferredCurrency} onSelectCurrency={setDisplay} ratesUnavailable={ratesUnavailable} /> : null}
+            <TourTarget id="balance">
+              {overview ? (
+                <BalanceHero overview={overview} selectedCurrency={preferredCurrency} onSelectCurrency={setDisplay} ratesUnavailable={ratesUnavailable} />
+              ) : null}
+            </TourTarget>
           </View>
 
           <View className="mt-5 flex-row gap-3">
             <View className="flex-1">
               <Button label="Add expense" icon={Plus} onPress={() => router.push('/expense/new')} />
             </View>
-            <View className="flex-1">
+            <TourTarget id="settle" className="flex-1">
               <Button label="Settle up" icon={ArrowRightLeft} variant="secondary" onPress={() => router.push('/settle')} />
-            </View>
+            </TourTarget>
           </View>
 
           {due.data && due.data.length > 0 ? (
@@ -134,7 +144,7 @@ export default function HomeScreen() {
           </View>
 
           <View className="mt-9">
-            <SectionHeader title="Recent activity" actionLabel="See all" onAction={() => router.push('/activity')} />
+            <SectionHeader title="Recent expenses" actionLabel="See all" onAction={() => router.push('/activity')} />
             <Surface padded={false} className="px-4 py-1">
               {activity.isPending ? (
                 <Text variant="caption" tone="muted" className="py-4">
@@ -142,7 +152,7 @@ export default function HomeScreen() {
                 </Text>
               ) : recentEvents.length === 0 ? (
                 <Text variant="caption" tone="muted" className="py-4">
-                  Quiet for now.
+                  No expenses yet.
                 </Text>
               ) : (
                 recentEvents.map((event) => (

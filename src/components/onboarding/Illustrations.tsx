@@ -17,7 +17,7 @@ import Svg, { Line } from 'react-native-svg';
 import { SettledCheck } from '@/components/settlements/SettledCheck';
 import { Avatar } from '@/components/ui/Avatar';
 import { Text } from '@/components/ui/Text';
-import { colors, floatingShadow } from '@/constants/theme';
+import { floatingShadow, useColors } from '@/constants/theme';
 import { formatMoney } from '@/utils/money';
 
 /** 0 → 1 when a slide becomes active; resets when it leaves. */
@@ -48,6 +48,7 @@ const PARTICIPANTS = [
 ];
 
 function Segment({ progress, index }: { progress: SharedValue<number>; index: number }) {
+  const colors = useColors();
   const style = useAnimatedStyle(() => {
     const t = interpolate(progress.get(), [0.25, 0.6], [0, 1], 'clamp');
     return { marginHorizontal: t * 2.5, borderRadius: 4 + t * 2 };
@@ -106,6 +107,7 @@ const ORBIT = [
 const CENTER = { x: 130, y: 100 };
 
 function Connector({ progress, x, y, index }: { progress: SharedValue<number>; x: number; y: number; index: number }) {
+  const colors = useColors();
   const length = Math.hypot(x - CENTER.x, y - CENTER.y);
   const props = useAnimatedProps(() => ({
     strokeDashoffset: length * (1 - interpolate(progress.get(), [index * 0.12, 0.5 + index * 0.12], [0, 1], 'clamp')),

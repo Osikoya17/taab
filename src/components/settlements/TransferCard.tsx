@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Money } from '@/components/ui/Money';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import type { SettleSuggestion } from '@/services/settlements.service';
 
 export type TransferCardProps = {
@@ -18,6 +18,7 @@ export type TransferCardProps = {
 
 /** "You owe Gbayin ₦8,500" with the action that resolves it. */
 export function TransferCard({ suggestion, showGroup = true, onRecord, onRemind }: TransferCardProps) {
+  const colors = useColors();
   const youOwe = suggestion.direction === 'you_owe';
   const other = youOwe ? { id: suggestion.toUserId, name: suggestion.toName } : { id: suggestion.fromUserId, name: suggestion.fromName };
   const headline = youOwe ? `You owe ${other.name}` : `${other.name} owes you`;

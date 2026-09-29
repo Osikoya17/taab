@@ -1,4 +1,4 @@
-declare const palette: {
+export type Palette = {
   canvas: string;
   surface: string;
   sunken: string;
@@ -15,4 +15,6 @@ declare const palette: {
   accentSoft: string;
   overlay: string;
 };
-export = palette;
+
+declare const palettes: { light: Palette; dark: Palette };
+export = palettes;

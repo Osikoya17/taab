@@ -1,16 +1,21 @@
 import { Check, CircleAlert } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
+import { useColorScheme } from 'nativewind';
 import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, floatingShadow } from '@/constants/theme';
+import { floatingShadow, useColors } from '@/constants/theme';
 import { useToastStore } from '@/store/toast.store';
 
 import { Text } from './Text';
 
 /** Renders the current toast near the top. Mounted once at the root. */
 export function ToastHost() {
+  const colors = useColors();
+  const { colorScheme } = useColorScheme();
+  // The toast is ink-coloured: dark on a light page, light on a dark page.
+  const onToast = colorScheme === 'dark' ? { error: '#C2543F', description: '#5E5E59' } : { error: '#F2B8AA', description: '#BDBDB8' };
   const current = useToastStore((s) => s.current);
   const dismiss = useToastStore((s) => s.dismiss);
   const { top } = useSafeAreaInsets();
@@ -37,14 +42,14 @@ export function ToastHost() {
               <Check size={14} color={colors.surface} strokeWidth={2.6} />
             </View>
           ) : current.tone === 'error' ? (
-            <CircleAlert size={20} color="#F2B8AA" strokeWidth={2} />
+            <CircleAlert size={20} color={onToast.error} strokeWidth={2} />
           ) : null}
           <View className="flex-1">
             <Text variant="bodyStrong" tone="inverse">
               {current.title}
             </Text>
             {current.description ? (
-              <Text variant="caption" className="mt-0.5" style={{ color: '#BDBDB8' }}>
+              <Text variant="caption" className="mt-0.5" style={{ color: onToast.description }}>
                 {current.description}
               </Text>
             ) : null}

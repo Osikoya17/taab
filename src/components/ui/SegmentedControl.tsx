@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, View, type LayoutChangeEvent } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { haptics } from '@/lib/haptics';
 
 import { Text } from './Text';
@@ -19,6 +19,7 @@ export type SegmentedControlProps<T extends string> = {
 
 /** Segmented picker with a sliding indicator. */
 export function SegmentedControl<T extends string>({ segments, value, onChange, accessibilityLabel }: SegmentedControlProps<T>) {
+  const colors = useColors();
   const [width, setWidth] = useState(0);
   const index = Math.max(0, segments.findIndex((s) => s.value === value));
   const segmentWidth = width > 0 ? (width - 8) / segments.length : 0;

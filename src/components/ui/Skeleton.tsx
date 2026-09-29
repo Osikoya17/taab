@@ -2,12 +2,13 @@ import { useEffect } from 'react';
 import { View, type DimensionValue } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 type SkeletonProps = { width?: DimensionValue; height?: number; radius?: number };
 
 /** A softly pulsing placeholder block. */
 export function Skeleton({ width = '100%', height = 14, radius = 8 }: SkeletonProps) {
+  const colors = useColors();
   const opacity = useSharedValue(0.55);
 
   useEffect(() => {

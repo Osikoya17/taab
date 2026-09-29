@@ -11,7 +11,7 @@ import { PressableScale } from '@/components/ui/PressableScale';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Text } from '@/components/ui/Text';
 import { CURRENCIES } from '@/constants/currencies';
-import { colors, fonts, noFocusRing } from '@/constants/theme';
+import { fonts, noFocusRing, useColors } from '@/constants/theme';
 import type { CurrencyCode, GroupMember } from '@/types/models';
 
 export type PayerPickerProps = {
@@ -33,6 +33,7 @@ function payerSummary(members: GroupMember[], payerIds: string[], meId: string) 
 
 /** "Paid by" row that opens a sheet for one or several payers. */
 export function PayerPicker({ members, meId, currency, payerIds, payerMode, payerAmounts, onChange, error }: PayerPickerProps) {
+  const colors = useColors();
   const [open, setOpen] = useState(false);
   const [draftIds, setDraftIds] = useState(payerIds);
   const [draftMode, setDraftMode] = useState(payerMode);

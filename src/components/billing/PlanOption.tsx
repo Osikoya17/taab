@@ -1,13 +1,16 @@
 import { View } from 'react-native';
+import { useColorScheme } from 'nativewind';
 
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import type { PlanPrice } from '@/features/billing/products';
 import { formatMoney } from '@/utils/money';
 import { cx } from '@/utils/cx';
 
 export function PlanOption({ price, selected, onSelect, badge }: { price: PlanPrice; selected: boolean; onSelect: () => void; badge?: string }) {
+  const colors = useColors();
+  const { colorScheme } = useColorScheme();
   const perMonth = price.interval === 'year' ? Math.round(price.amount / 12) : price.amount;
   return (
     <PressableScale
@@ -33,7 +36,7 @@ export function PlanOption({ price, selected, onSelect, badge }: { price: PlanPr
       </Text>
       {badge ? (
         <View className="mt-3 self-start rounded-full bg-accent-soft px-2.5 py-1">
-          <Text variant="micro" style={{ color: '#7A5A22' }}>
+          <Text variant="micro" style={{ color: colorScheme === 'dark' ? colors.accent : '#7A5A22' }}>
             {badge}
           </Text>
         </View>

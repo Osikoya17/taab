@@ -12,7 +12,7 @@ import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { useAuthSession } from '@/features/auth/auth-context';
 import { PLUS_BENEFITS, PLUS_MONTHLY, PLUS_PRICES, PLUS_YEARLY, yearlySavingsPercent, type PaidPlanId } from '@/features/billing/products';
 import type { SubscriptionStatus } from '@/features/billing/types';
@@ -27,6 +27,7 @@ import { useGoBack } from '@/hooks/use-go-back';
 const DEMO_STATES: SubscriptionStatus[] = ['none', 'trialing', 'active', 'canceled', 'past_due', 'expired'];
 
 export default function SubscriptionScreen() {
+  const colors = useColors();
   const { feature } = useLocalSearchParams<{ feature?: string }>();
   const goBack = useGoBack();
   const { mode } = useAuthSession();

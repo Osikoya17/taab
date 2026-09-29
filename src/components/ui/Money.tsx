@@ -1,6 +1,6 @@
 import { Text as RNText, type StyleProp, type TextStyle } from 'react-native';
 
-import { colors, fonts } from '@/constants/theme';
+import { fonts, useColors, type Palette } from '@/constants/theme';
 import { useDisplayCurrency } from '@/features/currency/display';
 import { useAnimatedNumber } from '@/hooks/use-animated-number';
 import type { CurrencyCode, MinorUnits } from '@/types/models';
@@ -14,13 +14,14 @@ const SIZES = {
   small: { fontSize: 14, lineHeight: 19, letterSpacing: -0.1, fontFamily: fonts.medium },
 } as const;
 
+/** Tone → palette colour; resolved against the active theme at render. */
 const TONES = {
-  ink: colors.ink,
-  muted: colors.muted,
-  positive: colors.positive,
-  negative: colors.negative,
-  inverse: colors.canvas,
-} as const;
+  ink: 'ink',
+  muted: 'muted',
+  positive: 'positive',
+  negative: 'negative',
+  inverse: 'canvas',
+} as const satisfies Record<string, keyof Palette>;
 
 export type MoneyProps = {
   amount: MinorUnits;
@@ -42,6 +43,7 @@ export type MoneyProps = {
 
 /** Every amount in the app renders through here, with tabular figures. */
 export function Money({ amount: ledgerAmount, currency: ledgerCurrency, size = 'body', tone = 'ink', sign = 'auto', fraction = 'auto', animated = false, convert = true, style }: MoneyProps) {
+  const colors = useColors();
   const { convert: toDisplay } = useDisplayCurrency();
   const { amount, currency } = convert ? toDisplay(ledgerAmount, ledgerCurrency) : { amount: ledgerAmount, currency: ledgerCurrency };
   const tweened = useAnimatedNumber(amount);
@@ -50,7 +52,7 @@ export function Money({ amount: ledgerAmount, currency: ledgerCurrency, size = '
   const factor = minorFactor(currency);
   const step = amount % factor === 0 ? factor : 1;
   const shown = animated ? Math.round(tweened / step) * step : amount;
-  const color = tone === 'auto' ? (amount > 0 ? colors.positive : amount < 0 ? colors.negative : colors.ink) : TONES[tone];
+  const color = tone === 'auto' ? (amount > 0 ? colors.positive : amount < 0 ? colors.negative : colors.ink) : colors[TONES[tone]];
   const final = formatMoney(amount, currency, { sign, fraction });
 
   return (

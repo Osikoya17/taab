@@ -6,7 +6,7 @@ import { createReceiptStore, openDatabase } from './storage';
 import { deliverPush } from './push';
 import { startWorker } from './worker';
 
-const secretKey = process.env.CLERK_SECRET_KEY;
+const secretKey = process.env.CLERK_SECRET_KEY?.trim();
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:8081').split(',').map((s) => s.trim()).filter(Boolean);
 const authorizedParties = (process.env.CLERK_AUTHORIZED_PARTIES ?? allowedOrigins.join(',')).split(',').map((s) => s.trim()).filter(Boolean);
 if (!secretKey) throw new Error('Set CLERK_SECRET_KEY in .env.server.local before starting the API.');

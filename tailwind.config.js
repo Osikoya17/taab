@@ -1,29 +1,38 @@
-const palette = require('./src/constants/palette');
+const plugin = require('tailwindcss/plugin');
+const { light, dark } = require('./src/constants/palette');
+
+/** Tailwind colour name → palette key. */
+const TOKENS = {
+  canvas: 'canvas',
+  surface: 'surface',
+  sunken: 'sunken',
+  ink: 'ink',
+  muted: 'muted',
+  faint: 'faint',
+  line: 'line',
+  'line-strong': 'lineStrong',
+  positive: 'positive',
+  'positive-soft': 'positiveSoft',
+  negative: 'negative',
+  'negative-soft': 'negativeSoft',
+  accent: 'accent',
+  'accent-soft': 'accentSoft',
+};
+
+/** '#F7F7F5' → '247 247 245', the channel form `rgb(var(--x) / <alpha>)` needs. */
+const channels = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(' ');
+const variables = (palette) => Object.fromEntries(Object.entries(TOKENS).map(([name, key]) => [`--color-${name}`, channels(palette[key])]));
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
-  // taab ships a single light theme; class mode stops NativeWind following the OS on web.
+  // Class mode: the app chooses light, dark or system itself (see use-appearance).
   darkMode: 'class',
   theme: {
     extend: {
-      colors: {
-        canvas: palette.canvas,
-        surface: palette.surface,
-        sunken: palette.sunken,
-        ink: palette.ink,
-        muted: palette.muted,
-        faint: palette.faint,
-        line: palette.line,
-        'line-strong': palette.lineStrong,
-        positive: palette.positive,
-        'positive-soft': palette.positiveSoft,
-        negative: palette.negative,
-        'negative-soft': palette.negativeSoft,
-        accent: palette.accent,
-        'accent-soft': palette.accentSoft,
-      },
+      // Every colour class reads a CSS variable, so switching theme restyles the app.
+      colors: Object.fromEntries(Object.keys(TOKENS).map((name) => [name, `rgb(var(--color-${name}) / <alpha-value>)`])),
       fontFamily: {
         geist: ["Geist_400Regular"],
         "geist-medium": ["Geist_500Medium"],
@@ -38,5 +47,8 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Light values on :root, dark values when the `dark` class is on the root.
+    plugin(({ addBase }) => addBase({ ':root': variables(light), '.dark:root': variables(dark) })),
+  ],
 };

@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 import { Text } from './Text';
 
@@ -17,6 +17,7 @@ export function useIsOnline() {
 
 /** A quiet strip, not a blocker: cached data stays usable while offline. */
 export function OfflineBanner() {
+  const colors = useColors();
   const online = useIsOnline();
   if (online) return null;
   return (

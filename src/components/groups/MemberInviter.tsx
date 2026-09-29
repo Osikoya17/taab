@@ -9,7 +9,7 @@ import { FormInput } from '@/components/ui/FormInput';
 import { IconButton } from '@/components/ui/IconButton';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { usePeopleSearch } from '@/features/groups/queries';
 import { haptics } from '@/lib/haptics';
 import type { Invite } from '@/services/groups.service';
@@ -32,6 +32,7 @@ export type MemberInviterProps = {
 
 /** Add people by taab account, email, or from contacts. */
 export function MemberInviter({ value, onChange, excludeIds = [] }: MemberInviterProps) {
+  const colors = useColors();
   const [query, setQuery] = useState('');
   const people = usePeopleSearch(query);
   const selectedKeys = new Set(value.map((v) => v.key));

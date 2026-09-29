@@ -5,7 +5,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 import { Text } from './Text';
 
@@ -25,6 +25,7 @@ const OFFSCREEN = 800;
  * dims the background, and can be dragged down to dismiss.
  */
 export function BottomSheet({ visible, onClose, title, description, children }: BottomSheetProps) {
+  const colors = useColors();
   const { bottom } = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
   const translateY = useSharedValue(OFFSCREEN);

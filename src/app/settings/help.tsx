@@ -1,4 +1,5 @@
-import { Mail } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Compass, Mail } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 
@@ -9,6 +10,7 @@ import { Screen } from '@/components/ui/Screen';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { env } from '@/lib/env';
+import { usePreferences } from '@/store/preferences.store';
 
 const FAQ = [
   {
@@ -35,9 +37,29 @@ const FAQ = [
 
 export default function HelpScreen() {
   const [open, setOpen] = useState<number | null>(0);
+  const router = useRouter();
+  const replayTour = usePreferences((s) => s.replayTour);
   return (
     <Screen header={<AppHeader back title="Help" />}>
-      <Surface padded={false} className="mt-2 px-4">
+      <Surface className="mt-2 flex-row items-center gap-3">
+        <View className="flex-1">
+          <Text variant="bodyStrong">New to taab?</Text>
+          <Text variant="caption" tone="muted" className="mt-0.5">
+            A quick tour of Home, the + button and your taabs.
+          </Text>
+        </View>
+        <Button
+          label="Show me around"
+          icon={Compass}
+          size="md"
+          fullWidth={false}
+          onPress={() => {
+            replayTour();
+            router.navigate('/');
+          }}
+        />
+      </Surface>
+      <Surface padded={false} className="mt-4 px-4">
         {FAQ.map((item, i) => (
           <View key={item.q}>
             {i > 0 ? <Divider /> : null}

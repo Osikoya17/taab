@@ -19,11 +19,20 @@ type PreferencesState = {
    * taab in its own currency. Display only: the ledger never changes.
    */
   displayCurrency: CurrencyCode | null;
+  /** Light, dark, or follow the device. */
+  appearance: Appearance;
+  /** The first-run walkthrough on Home has been finished or skipped. */
+  hasSeenTour: boolean;
   setPendingInvite: (token: string | null) => void;
   completeOnboarding: () => void;
   markNotificationPrompted: () => void;
   setDisplayCurrency: (currency: CurrencyCode | null) => void;
+  setAppearance: (appearance: Appearance) => void;
+  completeTour: () => void;
+  replayTour: () => void;
 };
+
+export type Appearance = 'system' | 'light' | 'dark';
 
 export const usePreferences = create<PreferencesState>()(
   persist(
@@ -33,15 +42,20 @@ export const usePreferences = create<PreferencesState>()(
       hydrated: false,
       pendingInvite: null,
       displayCurrency: null,
+      appearance: 'system',
+      hasSeenTour: false,
       setPendingInvite: (pendingInvite) => set({ pendingInvite }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
       markNotificationPrompted: () => set({ notificationPromptedAt: new Date().toISOString() }),
       setDisplayCurrency: (displayCurrency) => set({ displayCurrency }),
+      setAppearance: (appearance) => set({ appearance }),
+      completeTour: () => set({ hasSeenTour: true }),
+      replayTour: () => set({ hasSeenTour: false }),
     }),
     {
       name: 'taab.preferences.v1',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency }) => ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency }),
+      partialize: ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency, appearance, hasSeenTour }) => ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency, appearance, hasSeenTour }),
       onRehydrateStorage: () => () => usePreferences.setState({ hydrated: true }),
     },
   ),

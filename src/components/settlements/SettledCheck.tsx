@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import Animated, { Easing, useAnimatedProps, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -12,6 +12,7 @@ const RING_LENGTH = 2 * Math.PI * 34;
 
 /** A check that draws itself in — the one celebratory moment in settling up. */
 export function SettledCheck({ size = 96, play = true }: { size?: number; play?: boolean }) {
+  const colors = useColors();
   const ring = useSharedValue(0);
   const check = useSharedValue(0);
   const scale = useSharedValue(0.9);

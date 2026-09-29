@@ -4,21 +4,38 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { ChoiceRow } from '@/components/ui/ChoiceRow';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
+import { haptics } from '@/lib/haptics';
+import { usePreferences, type Appearance } from '@/store/preferences.store';
+
+const APPEARANCE_OPTIONS: { value: Appearance; label: string; detail: string }[] = [
+  { value: 'system', label: 'System', detail: 'Match your device' },
+  { value: 'light', label: 'Light', detail: 'Warm white' },
+  { value: 'dark', label: 'Dark', detail: 'Easy on the eyes at night' },
+];
 
 export default function AppearanceScreen() {
+  const appearance = usePreferences((s) => s.appearance);
+  const setAppearance = usePreferences((s) => s.setAppearance);
+
   return (
     <Screen header={<AppHeader back title="Appearance" />}>
       <Text variant="body" tone="muted" className="pt-2">
-        taab is designed around a calm, warm-white look.
+        Choose how taab looks on this device.
       </Text>
-      <View className="mt-5 gap-2">
-        <ChoiceRow label="Light" detail="Warm white" selected onPress={() => undefined} />
-      </View>
-      <View className="mt-6 rounded-card border border-dashed border-line-strong px-4 py-4">
-        <Text variant="bodyStrong">Dark and premium themes</Text>
-        <Text variant="caption" tone="muted" className="mt-0.5">
-          Not available yet. The current app uses the light theme.
-        </Text>
+      <View className="mt-5 gap-2" accessibilityRole="radiogroup">
+        {APPEARANCE_OPTIONS.map((option) => (
+          <ChoiceRow
+            key={option.value}
+            label={option.label}
+            detail={option.detail}
+            selected={appearance === option.value}
+            onPress={() => {
+              if (appearance === option.value) return;
+              haptics.selection();
+              setAppearance(option.value);
+            }}
+          />
+        ))}
       </View>
     </Screen>
   );

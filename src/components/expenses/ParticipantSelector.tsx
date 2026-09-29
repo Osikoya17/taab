@@ -5,11 +5,12 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 
 import { Avatar } from '@/components/ui/Avatar';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { haptics } from '@/lib/haptics';
 import type { GroupMember } from '@/types/models';
 
 function Participant({ member, label, selected, onToggle }: { member: GroupMember; label: string; selected: boolean; onToggle: () => void }) {
+  const colors = useColors();
   const progress = useSharedValue(selected ? 1 : 0);
 
   useEffect(() => {

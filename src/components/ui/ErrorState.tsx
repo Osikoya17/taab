@@ -1,7 +1,7 @@
 import { CloudOff } from 'lucide-react-native';
 import { View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 import { Button } from './Button';
 import { Text } from './Text';
@@ -21,6 +21,7 @@ export function ErrorState({
   onRetry,
   retrying,
 }: ErrorStateProps) {
+  const colors = useColors();
   return (
     <View className="items-center px-8 py-14" accessibilityRole="alert">
       <View className="h-14 w-14 items-center justify-center rounded-full bg-sunken">

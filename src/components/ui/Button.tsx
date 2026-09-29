@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { ActivityIndicator, View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { useColors, type Palette } from '@/constants/theme';
 import { cx } from '@/utils/cx';
 
 import { PressableScale } from './PressableScale';
@@ -30,7 +30,7 @@ const CONTAINER: Record<ButtonVariant, string> = {
 };
 
 const LABEL_TONE = { primary: 'inverse', secondary: 'ink', ghost: 'ink', danger: 'negative' } as const;
-const ICON_COLOR = { primary: colors.canvas, secondary: colors.ink, ghost: colors.ink, danger: colors.negative };
+const ICON_COLOR = { primary: 'canvas', secondary: 'ink', ghost: 'ink', danger: 'negative' } as const satisfies Record<ButtonVariant, keyof Palette>;
 
 export function Button({
   label,
@@ -44,6 +44,8 @@ export function Button({
   accessibilityHint,
   className,
 }: ButtonProps) {
+  const colors = useColors();
+  const iconColor = colors[ICON_COLOR[variant]];
   const inactive = disabled || loading;
   return (
     <PressableScale
@@ -61,10 +63,10 @@ export function Button({
         className,
       )}>
       {loading ? (
-        <ActivityIndicator color={ICON_COLOR[variant]} />
+        <ActivityIndicator color={iconColor} />
       ) : (
         <View className="flex-row items-center gap-2">
-          {Icon ? <Icon size={18} color={ICON_COLOR[variant]} strokeWidth={2} /> : null}
+          {Icon ? <Icon size={18} color={iconColor} strokeWidth={2} /> : null}
           <Text variant={size === 'lg' ? 'bodyStrong' : 'label'} tone={LABEL_TONE[variant]}>
             {label}
           </Text>

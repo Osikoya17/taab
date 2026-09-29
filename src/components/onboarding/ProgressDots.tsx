@@ -1,9 +1,10 @@
 import { View } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 function Dot({ index, position }: { index: number; position: SharedValue<number> }) {
+  const colors = useColors();
   const style = useAnimatedStyle(() => {
     const distance = Math.abs(position.get() - index);
     const t = interpolate(distance, [0, 1], [1, 0], 'clamp');

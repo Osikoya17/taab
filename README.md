@@ -44,6 +44,12 @@ Rate limiting uses the connecting address. Behind exactly one reverse proxy, set
 
 The server checks recurring expenses, queued account deletions, push delivery, and unused receipt photos every minute. Failures are retried without blocking unrelated accounts or job types. Shutdown waits for an active worker cycle and HTTP requests before closing SQLite.
 
+## Deploy
+
+The API runs on Railway (project `taab`, service `api`) from the root `Dockerfile`, which bundles the server with `npm run server:build`. SQLite lives on a Railway volume mounted at `/data`. Deploy with `railway up --ci`. Set secrets such as `CLERK_SECRET_KEY` in Railway's variables, never in the image; `.dockerignore` keeps `.env` files and `.data/` out of it. Keep one replica, because the ledger is held in memory.
+
+The web app is hosted on EAS Hosting at `taab.expo.app`. `EXPO_PUBLIC_API_URL` in `.env` is baked in at build time, so rebuild after changing it: `npx expo export --platform web`, then `npx eas-cli@latest deploy --prod`.
+
 ## Invitations, receipts, and notifications
 
 - Shareable invite links expire after seven days. Email/phone invitations create pending members; the app does not send invitation email or SMS. An invited person can join using the shared link. Verified email matching preserves their existing expense shares and activity.

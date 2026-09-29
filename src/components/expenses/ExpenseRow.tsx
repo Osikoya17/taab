@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { Money } from '@/components/ui/Money';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { categoryMeta } from '@/features/expenses/categories';
 import type { ExpenseListItem } from '@/services/expenses.service';
 import type { Group, Settlement } from '@/types/models';
@@ -18,6 +18,7 @@ function nameOf(group: Group, userId: string, meId: string) {
 
 /** "Dinner · Yesterday · You paid ₦48,000 — Your share ₦12,000" */
 export function ExpenseRow({ item, group, meId, onPress }: { item: ExpenseListItem; group: Group; meId: string; onPress: () => void }) {
+  const colors = useColors();
   const { expense, myShare, status } = item;
   const { format } = useDisplayCurrency();
   const Icon = categoryMeta(expense.category).icon;
@@ -69,6 +70,7 @@ export function ExpenseRow({ item, group, meId, onPress }: { item: ExpenseListIt
 
 /** Payments appear inline in the group feed so the story reads in order. */
 export function SettlementRow({ settlement, group, meId }: { settlement: Settlement; group: Group; meId: string }) {
+  const colors = useColors();
   const { format } = useDisplayCurrency();
   const from = nameOf(group, settlement.fromUserId, meId);
   const to = settlement.toUserId === meId ? 'you' : nameOf(group, settlement.toUserId, meId);

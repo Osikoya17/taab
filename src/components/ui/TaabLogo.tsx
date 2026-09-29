@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { colors, fonts } from '@/constants/theme';
+import { fonts, useColors } from '@/constants/theme';
 
 const SIZES = {
   small: { fontSize: 22, letterSpacing: -0.9 },
@@ -32,7 +32,9 @@ export type TaabLogoProps = {
  * The taab wordmark. Rendered as text for now and isolated here so the final
  * custom SVG (with the fractured "a") can replace it without touching screens.
  */
-export function TaabLogo({ size = 'medium', color = colors.ink, animateSplit = false, onSplitComplete }: TaabLogoProps) {
+export function TaabLogo({ size = 'medium', color: colorProp, animateSplit = false, onSplitComplete }: TaabLogoProps) {
+  const colors = useColors();
+  const color = colorProp ?? colors.ink;
   const { fontSize, letterSpacing } = SIZES[size];
   const gap = useSharedValue(0);
 

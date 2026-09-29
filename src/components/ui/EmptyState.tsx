@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { TourTarget } from '@/components/tour/TourTarget';
+import { useColors } from '@/constants/theme';
+import type { TourTargetId } from '@/features/tour/targets';
 
 import { Button } from './Button';
 import { Text } from './Text';
@@ -13,6 +15,7 @@ export type EmptyIllustration = 'receipt' | 'stack' | 'pulse' | 'bell' | 'check'
  * Each hints at the content that will eventually fill the space.
  */
 function Illustration({ kind }: { kind: EmptyIllustration }) {
+  const colors = useColors();
   switch (kind) {
     case 'receipt':
       return (
@@ -86,11 +89,13 @@ export type EmptyStateProps = {
   illustration?: EmptyIllustration;
   actionLabel?: string;
   onAction?: () => void;
+  /** Lets the first-run tour point at the action. */
+  actionTourId?: TourTargetId;
   children?: ReactNode;
   compact?: boolean;
 };
 
-export function EmptyState({ title, description, illustration = 'receipt', actionLabel, onAction, children, compact }: EmptyStateProps) {
+export function EmptyState({ title, description, illustration = 'receipt', actionLabel, onAction, actionTourId, children, compact }: EmptyStateProps) {
   return (
     <View className={compact ? 'items-center px-6 py-8' : 'items-center px-8 py-14'}>
       <Illustration kind={illustration} />
@@ -104,7 +109,13 @@ export function EmptyState({ title, description, illustration = 'receipt', actio
       ) : null}
       {actionLabel && onAction ? (
         <View className="mt-6 w-full max-w-[260px]">
-          <Button label={actionLabel} onPress={onAction} size="md" />
+          {actionTourId ? (
+            <TourTarget id={actionTourId}>
+              <Button label={actionLabel} onPress={onAction} size="md" />
+            </TourTarget>
+          ) : (
+            <Button label={actionLabel} onPress={onAction} size="md" />
+          )}
         </View>
       ) : null}
       {children}

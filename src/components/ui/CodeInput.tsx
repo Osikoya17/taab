@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
-import { colors, fonts, noFocusRing } from '@/constants/theme';
+import { fonts, noFocusRing, useColors } from '@/constants/theme';
 import { cx } from '@/utils/cx';
 
 import { Text } from './Text';
@@ -20,6 +20,7 @@ export type CodeInputProps = {
  * directly; it supports paste and iOS/Android code autofill.
  */
 export function CodeInput({ value, onChange, length = 6, error, autoFocus = true, onComplete }: CodeInputProps) {
+  const colors = useColors();
   const [focused, setFocused] = useState(false);
 
   return (

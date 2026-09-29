@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
 import { CURRENCIES } from '@/constants/currencies';
-import { colors, fonts, noFocusRing } from '@/constants/theme';
+import { fonts, noFocusRing, useColors } from '@/constants/theme';
 import type { CurrencyCode, MinorUnits } from '@/types/models';
 import { formatMoney, parseMoneyInput, toInputString } from '@/utils/money';
 
@@ -23,6 +23,7 @@ export type CurrencyInputProps = {
  * formatted (₦48,000) and the caret never jumps around separators.
  */
 export function CurrencyInput({ value, onChange, currency, autoFocus, error, accessibilityLabel = 'Amount' }: CurrencyInputProps) {
+  const colors = useColors();
   const [raw, setRaw] = useState(value > 0 ? toInputString(value, currency) : '');
   const [focused, setFocused] = useState(false);
   const exponent = CURRENCIES[currency].exponent;

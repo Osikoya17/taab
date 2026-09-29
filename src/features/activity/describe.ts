@@ -11,6 +11,13 @@ export type ActivityDescription = {
   kind: 'expense' | 'payment' | 'member' | 'group' | 'reminder' | 'removed';
 };
 
+const MONEY_EVENTS: ActivityEvent['type'][] = ['expense_created', 'expense_edited', 'expense_deleted', 'payment_recorded'];
+
+/** Expenses and payments: what the Expenses tab and Home's recent list show. */
+export function isMoneyEvent(event: ActivityEvent): boolean {
+  return MONEY_EVENTS.includes(event.type);
+}
+
 /**
  * Turns a raw event into short, social copy from the viewer's perspective.
  * `format` lets the screen show amounts in the viewer's display currency.

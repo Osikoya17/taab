@@ -12,7 +12,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { CATEGORIES } from '@/features/expenses/categories';
 import { useReceiptImage } from '@/features/expenses/use-receipt-image';
 import type { ExpenseCategory } from '@/types/models';
@@ -62,6 +62,7 @@ function shiftDay(iso: string, days: number) {
 
 /** Optional fields, tucked away so the default flow stays fast. */
 export function MoreOptions({ value, onChange, recurringUnlocked, onRecurringLocked, allowRepeat, defaultOpen = false }: MoreOptionsProps) {
+  const colors = useColors();
   const [open, setOpen] = useState(defaultOpen);
   const isToday = dayLabel(value.date) === 'Today';
   const receiptPreview = useReceiptImage(value.receiptUri);

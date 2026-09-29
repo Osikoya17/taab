@@ -12,6 +12,7 @@ import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
 import { LoadingSkeleton } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
+import { isMoneyEvent } from '@/features/activity/describe';
 import { useActivityFeed } from '@/features/activity/queries';
 import { toTimelineSections } from '@/features/activity/timeline';
 import { useAuthSession } from '@/features/auth/auth-context';
@@ -19,7 +20,7 @@ import { FEATURES, FREE_LIMITS } from '@/features/billing/products';
 import { useBottomInset } from '@/hooks/use-bottom-inset';
 import type { ActivityEvent } from '@/types/models';
 
-export default function ActivityScreen() {
+export default function ExpensesScreen() {
   const router = useRouter();
   const { user } = useAuthSession();
   const feed = useActivityFeed();
@@ -27,7 +28,8 @@ export default function ActivityScreen() {
   const listRef = useRef<SectionList<ActivityEvent>>(null);
   useScrollToTop(listRef);
 
-  const events = feed.data?.pages.flatMap((p) => p.items) ?? [];
+  // Joins, new taabs and reminders are context, not money: keep them out of Expenses.
+  const events = (feed.data?.pages.flatMap((p) => p.items) ?? []).filter(isMoneyEvent);
   const sections = toTimelineSections(events);
   const historyLimited = feed.data?.pages[feed.data.pages.length - 1]?.historyLimited ?? false;
 
@@ -36,7 +38,7 @@ export default function ActivityScreen() {
       scroll={false}
       header={
         <>
-          <AppHeader large title="Activity" />
+          <AppHeader large title="Expenses" />
           <OfflineBanner />
         </>
       }>
@@ -45,7 +47,7 @@ export default function ActivityScreen() {
           <LoadingSkeleton rows={6} />
         </View>
       ) : feed.isError && !feed.data ? (
-        <ErrorState title="Couldn’t load activity." onRetry={() => feed.refetch()} retrying={feed.isRefetching} />
+        <ErrorState title="Couldn’t load your expenses." onRetry={() => feed.refetch()} retrying={feed.isRefetching} />
       ) : (
         <SectionList
           ref={listRef}
@@ -61,7 +63,7 @@ export default function ActivityScreen() {
             <ActivityRow event={item} meId={user?.id ?? ''} onPress={(e) => router.push(`/expense/${e.expenseId}`)} />
           )}
           ItemSeparatorComponent={() => <Divider inset={52} />}
-          ListEmptyComponent={<EmptyState illustration="pulse" title="Quiet for now." description="New expenses and settlements will show up here." />}
+          ListEmptyComponent={<EmptyState illustration="pulse" title="No expenses yet." description="Bills and payments from all your taabs will show up here." />}
           ListFooterComponent={
             feed.isFetchingNextPage ? (
               <ActivityIndicator className="py-6" />

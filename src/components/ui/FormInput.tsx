@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react-native';
 import { forwardRef, useState, type ReactNode } from 'react';
 import { TextInput, View, type TextInputProps } from 'react-native';
 
-import { colors, fonts, noFocusRing } from '@/constants/theme';
+import { fonts, noFocusRing, useColors } from '@/constants/theme';
 import { cx } from '@/utils/cx';
 
 import { Text } from './Text';
@@ -22,6 +22,7 @@ export const FormInput = forwardRef<TextInput, FormInputProps>(function FormInpu
   { label, hideLabel, error, hint, icon: Icon, trailing, onFocus, onBlur, editable = true, ...props },
   ref,
 ) {
+  const colors = useColors();
   const [focused, setFocused] = useState(false);
 
   return (

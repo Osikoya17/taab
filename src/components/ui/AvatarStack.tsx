@@ -1,6 +1,6 @@
 import { Text as RNText, View } from 'react-native';
 
-import { colors, fonts } from '@/constants/theme';
+import { fonts, useColors } from '@/constants/theme';
 
 import { Avatar } from './Avatar';
 
@@ -12,6 +12,7 @@ export type AvatarStackProps = {
 
 /** Overlapping avatars with a +N overflow chip. */
 export function AvatarStack({ people, size = 28, max = 4 }: AvatarStackProps) {
+  const colors = useColors();
   const visible = people.slice(0, max);
   const overflow = people.length - visible.length;
   const overlap = size * 0.32;

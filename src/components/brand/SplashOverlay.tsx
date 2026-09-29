@@ -3,7 +3,7 @@ import { StyleSheet } from 'react-native';
 import Animated, { FadeOut } from 'react-native-reanimated';
 
 import { TaabLogo } from '@/components/ui/TaabLogo';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 
 /**
  * Picks up exactly where the native splash leaves off (same warm white, same
@@ -11,6 +11,7 @@ import { colors } from '@/constants/theme';
  * ready. Total time stays under a second on a warm start.
  */
 export function SplashOverlay({ ready }: { ready: boolean }) {
+  const colors = useColors();
   const [animationDone, setAnimationDone] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 

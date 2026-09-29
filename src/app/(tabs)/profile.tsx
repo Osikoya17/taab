@@ -32,6 +32,7 @@ import { useProfile } from '@/features/profile/queries';
 import { env } from '@/lib/env';
 import { usersService } from '@/services/users.service';
 import { hasRemoteApi } from '@/services/api/client';
+import { usePreferences } from '@/store/preferences.store';
 import { toast } from '@/store/toast.store';
 import { monthYear } from '@/utils/dates';
 
@@ -57,6 +58,7 @@ export default function ProfileScreen() {
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const appearance = usePreferences((s) => s.appearance);
 
   const name = profile?.name ?? user?.fullName ?? '';
   const email = profile?.email ?? user?.email ?? '';
@@ -123,7 +125,7 @@ export default function ProfileScreen() {
         <Divider inset={60} />
         <ListRow icon={Bell} title="Notifications" onPress={() => router.push('/settings/notifications')} />
         <Divider inset={60} />
-        <ListRow icon={Palette} title="Appearance" value="Light" onPress={() => router.push('/settings/appearance')} />
+        <ListRow icon={Palette} title="Appearance" value={appearance === 'system' ? 'System' : appearance === 'dark' ? 'Dark' : 'Light'} onPress={() => router.push('/settings/appearance')} />
       </Section>
 
       <Section title="taab">

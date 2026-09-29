@@ -1,8 +1,21 @@
+import { useColorScheme } from 'nativewind';
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
-import palette from './palette';
+import palettes, { type Palette } from './palette';
 
-export const colors = palette;
+export type { Palette };
+
+/** The light palette. In components, use `useColors()` so dark mode applies. */
+export const colors: Palette = palettes.light;
+
+/**
+ * Colours for the active theme, for anything set in code (icons, inline
+ * styles). Classes like `bg-canvas` switch on their own.
+ */
+export function useColors(): Palette {
+  const { colorScheme } = useColorScheme();
+  return colorScheme === 'dark' ? palettes.dark : palettes.light;
+}
 
 export const fonts = {
   regular: 'Geist_400Regular',

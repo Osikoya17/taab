@@ -13,7 +13,7 @@ import { Screen } from '@/components/ui/Screen';
 import { LoadingSkeleton } from '@/components/ui/Skeleton';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { useGroup } from '@/features/groups/queries';
 import { useRecurring, useRemoveRecurring } from '@/features/recurring/queries';
 import { toast } from '@/store/toast.store';
@@ -22,6 +22,7 @@ import { shortDate } from '@/utils/dates';
 const FREQUENCY_COPY = { weekly: 'Every week', monthly: 'Every month', custom: 'Custom' } as const;
 
 export default function RecurringScreen() {
+  const colors = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const group = useGroup(id);

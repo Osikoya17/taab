@@ -1,6 +1,6 @@
 import { Lock, type LucideIcon } from 'lucide-react-native';
 
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { cx } from '@/utils/cx';
 
 import { PressableScale } from './PressableScale';
@@ -16,6 +16,7 @@ export type ChipProps = {
 
 /** Selectable pill for filters and small choices. */
 export function Chip({ label, selected = false, onPress, icon: Icon, locked }: ChipProps) {
+  const colors = useColors();
   return (
     <PressableScale
       onPress={onPress}

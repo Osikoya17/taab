@@ -7,7 +7,7 @@ import { Money } from '@/components/ui/Money';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Text } from '@/components/ui/Text';
 import { CURRENCIES } from '@/constants/currencies';
-import { colors, fonts, noFocusRing } from '@/constants/theme';
+import { fonts, noFocusRing, useColors } from '@/constants/theme';
 import type { SplitPreview } from '@/features/expenses/expense-form';
 import type { CurrencyCode, GroupMember, SplitMethod } from '@/types/models';
 
@@ -33,6 +33,7 @@ export type SplitBreakdownProps = {
 };
 
 function ValueInput({ method, value, onChange, label, currency }: { method: SplitMethod; value: string; onChange: (t: string) => void; label: string; currency: CurrencyCode }) {
+  const colors = useColors();
   const prefix = method === 'exact' ? CURRENCIES[currency].symbol : undefined;
   const suffix = method === 'percentage' ? '%' : method === 'shares' ? '×' : undefined;
   return (
@@ -63,6 +64,7 @@ function ValueInput({ method, value, onChange, label, currency }: { method: Spli
 
 /** Split method + per-person shares, with a live "adds up" check. */
 export function SplitBreakdown({ method, onMethodChange, participants, values, onValueChange, preview, currency, meId, advancedUnlocked }: SplitBreakdownProps) {
+  const colors = useColors();
   return (
     <View>
       <Text variant="label" tone="muted" className="mb-2">

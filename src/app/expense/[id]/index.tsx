@@ -22,7 +22,7 @@ import { useDeleteExpense, useExpense } from '@/features/expenses/queries';
 import { useReceiptImage } from '@/features/expenses/use-receipt-image';
 import { useDisplayCurrency } from '@/features/currency/display';
 import { formatRate } from '@/features/currency/rates';
-import { colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { basisPointsToPercentString } from '@/features/expenses/split';
 import { haptics } from '@/lib/haptics';
 import { captureEvent } from '@/lib/posthog';
@@ -56,6 +56,7 @@ function PersonLine({ group, userId, meId, amount, currency, detail }: { group: 
 }
 
 export default function ExpenseDetailScreen() {
+  const colors = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const goBack = useGoBack();
@@ -144,7 +145,7 @@ export default function ExpenseDetailScreen() {
       }>
       <View className="items-center pt-4">
         <View className="h-14 w-14 items-center justify-center rounded-[20px] border border-line bg-surface">
-          <Icon size={24} color="#111111" strokeWidth={1.8} />
+          <Icon size={24} color={colors.ink} strokeWidth={1.8} />
         </View>
         <Text variant="heading" className="mt-4 text-center">
           {expense.title}
