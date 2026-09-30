@@ -37,6 +37,7 @@ yarn-error.*
 .data/
 
 # Firebase service account keys are private. (google-services.json is public and is committed.)
+*google-services*.json
 *firebase-adminsdk*.json
 *service-account*.json
 
