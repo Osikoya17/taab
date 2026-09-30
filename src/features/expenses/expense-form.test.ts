@@ -1,6 +1,6 @@
 import type { Group } from '@/types/models';
 
-import { buildExpenseInput, defaultFormValues, formValuesFromExpense, previewSplit, type ExpenseFormValues } from './expense-form';
+import { buildExpenseInput, defaultFormValues, formValuesFromExpense, previewSplit, scanPrefill, type ExpenseFormValues } from './expense-form';
 
 const group: Group = {
   id: 'g1',
@@ -77,5 +77,23 @@ describe('expense form', () => {
     expect(back.splitValues).toEqual({ me: '62.5', gbayin: '37.5' });
     expect(back.payerMode).toBe('equal');
     expect(buildExpenseInput(back, 'NGN', nameOf)).toMatchObject({ ok: true, input: { splitBetween: built.input.splitBetween } });
+  });
+});
+
+describe('scanPrefill', () => {
+  const draft = { merchant: 'Mama Put', total: 129_000, date: '2026-09-01', items: [], charges: [], warnings: [], source: 'demo' as const };
+  const now = new Date('2026-09-10T09:00:00.000Z');
+
+  it('starts the form from a reviewed scan, photo and link included', () => {
+    const values = scanPrefill({ id: 'scan_1', receiptUrl: '/receipts/abc', draft }, now);
+    expect(values).toMatchObject({ title: 'Mama Put', amount: 129_000, receiptUri: '/receipts/abc', scanId: 'scan_1' });
+    expect(values.date!.slice(0, 10)).toBe('2026-09-01');
+  });
+
+  it('leaves what the scanner missed for the person, and never dates a bill in the future', () => {
+    const values = scanPrefill({ id: 'scan_2', receiptUrl: 'x', draft: { ...draft, merchant: undefined, total: undefined, date: '2027-01-01' } }, now);
+    expect(values).toMatchObject({ title: '', amount: 0 });
+    expect(values.date).toBe(now.toISOString());
+    expect(scanPrefill(undefined)).toEqual({});
   });
 });

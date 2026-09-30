@@ -27,7 +27,7 @@ const FAQ = [
   },
   {
     q: 'Can I split unevenly?',
-    a: 'Yes. Choose exact amounts on the free plan, or percentages and shares with taab+.',
+    a: 'Yes. Split equally, by exact amounts, by percentages or by shares. Every split method is free.',
   },
   {
     q: 'What if someone isn’t on taab yet?',

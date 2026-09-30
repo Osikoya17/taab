@@ -1,11 +1,15 @@
 import { useRouter } from 'expo-router';
 import { ArrowRightLeft, Bell, Plus } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { RefreshControl, View } from 'react-native';
 
 import { ActivityRow } from '@/components/activity/ActivityRow';
 import { GroupCard } from '@/components/groups/GroupCard';
 import { BalanceHero } from '@/components/home/BalanceHero';
 import { DueRecurringCard } from '@/components/home/DueRecurringCard';
+import { AwaitingConfirmationList } from '@/components/settlements/AwaitingConfirmationList';
+import { PayoutPromptCard } from '@/components/payouts/PayoutPromptCard';
+import { PendingPaymentCard } from '@/components/settlements/PendingPaymentCard';
 import { AppTour } from '@/components/tour/AppTour';
 import { TourTarget } from '@/components/tour/TourTarget';
 import { Avatar } from '@/components/ui/Avatar';
@@ -31,7 +35,10 @@ import { useGroups } from '@/features/groups/queries';
 import { useUnreadCount } from '@/features/notifications/queries';
 import { useProfile } from '@/features/profile/queries';
 import { emptyStateExample } from '@/features/profile/use-cases';
+import { askForNotifications } from '@/features/notifications/prompt';
 import { useDueRecurring } from '@/features/recurring/queries';
+import { usePreferences } from '@/store/preferences.store';
+import { usePendingPayments } from '@/features/settlements/queries';
 import { greeting } from '@/utils/dates';
 
 export default function HomeScreen() {
@@ -42,7 +49,16 @@ export default function HomeScreen() {
   const groups = useGroups();
   const activity = useActivityFeed();
   const due = useDueRecurring();
+  const pending = usePendingPayments();
   const unread = useUnreadCount();
+  const waitingOnMe = pending.data?.filter((p) => p.needsYou) ?? [];
+  const waitingOnOthers = pending.data?.filter((p) => !p.needsYou) ?? [];
+  const hasSeenTour = usePreferences((s) => s.hasSeenTour);
+
+  // Once the walkthrough is out of the way, explain notifications.
+  useEffect(() => {
+    if (groups.isSuccess && hasSeenTour) askForNotifications('welcome').catch(() => undefined);
+  }, [groups.isSuccess, hasSeenTour]);
 
   const name = profile?.name?.split(' ')[0] ?? user?.firstName ?? '';
   const { display, setDisplay, ratesUnavailable } = useDisplayCurrency();
@@ -85,6 +101,7 @@ export default function HomeScreen() {
           onRefresh={() => {
             groups.refetch();
             activity.refetch();
+            pending.refetch();
           }}
         />
       }>
@@ -125,6 +142,24 @@ export default function HomeScreen() {
               <Button label="Settle up" icon={ArrowRightLeft} variant="secondary" onPress={() => router.push('/settle')} />
             </TourTarget>
           </View>
+
+          {waitingOnMe.length > 0 ? (
+            <View className="mt-5 gap-3">
+              {waitingOnMe.map((p) => (
+                <PendingPaymentCard key={p.settlement.id} pending={p} />
+              ))}
+            </View>
+          ) : null}
+
+          <View className="mt-5">
+            <PayoutPromptCard />
+          </View>
+
+          {waitingOnOthers.length > 0 ? (
+            <View className="mt-5">
+              <AwaitingConfirmationList payments={waitingOnOthers} />
+            </View>
+          ) : null}
 
           {due.data && due.data.length > 0 ? (
             <View className="mt-5 gap-3">

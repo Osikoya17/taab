@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { PayToCard } from '@/components/payouts/PayToCard';
 import { SettledCheck } from '@/components/settlements/SettledCheck';
 import { SheetHeader } from '@/components/ui/AppHeader';
 import { Avatar } from '@/components/ui/Avatar';
@@ -17,10 +18,13 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { BalanceSkeleton } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
 import { useAuthSession } from '@/features/auth/auth-context';
+import { isWithinAmountLimit, MAX_AMOUNT } from '@/constants/currencies';
 import { useDisplayCurrency } from '@/features/currency/display';
 import { convertMinor } from '@/features/currency/rates';
 import { useGroup } from '@/features/groups/queries';
+import { useGroupPayouts } from '@/features/payouts/queries';
 import { AVAILABLE_METHODS } from '@/features/settlements/methods';
+import { askForNotifications } from '@/features/notifications/prompt';
 import { useRecordSettlement } from '@/features/settlements/queries';
 import { haptics } from '@/lib/haptics';
 import { captureEvent } from '@/lib/posthog';
@@ -38,6 +42,7 @@ export default function RecordPaymentScreen() {
   const meId = user?.id ?? '';
   const group = useGroup(params.groupId);
   const record = useRecordSettlement();
+  const payouts = useGroupPayouts(params.groupId);
 
   const suggested = Number(params.amount) || 0;
   const [mode, setMode] = useState<'full' | 'custom'>('full');
@@ -66,9 +71,10 @@ export default function RecordPaymentScreen() {
   // "Full amount" records the exact debt, so it always settles to zero.
   const amount = mode === 'full' ? suggested : entry !== currency && rates ? convertMinor(custom, entry, currency, rates) : custom;
   const tooMuch = amount > suggested;
+  const overLimit = !isWithinAmountLimit(amount, currency);
 
   async function submit() {
-    if (amount <= 0) return;
+    if (amount <= 0 || overLimit) return;
     try {
       await record.mutateAsync({ groupId: params.groupId, fromUserId: params.fromUserId, toUserId: params.toUserId, amount, method, note });
       captureEvent('settlement_recorded', {
@@ -79,6 +85,8 @@ export default function RecordPaymentScreen() {
       });
       haptics.success();
       setDone({ amount });
+      // A payer wants to hear when the other person confirms.
+      if (youPay) askForNotifications('payment').catch(() => undefined);
     } catch {
       toast.error('Couldn’t record that payment', 'Check your connection and try again.');
     }
@@ -86,18 +94,23 @@ export default function RecordPaymentScreen() {
 
   if (done) {
     const remaining = Math.max(0, suggested - done.amount);
+    // The payer's record waits for the receiver, so nothing is settled yet.
+    const title = youPay ? 'Payment recorded.' : remaining === 0 ? `You’re settled with ${otherName}.` : 'Payment received.';
+    const body = youPay
+      ? `We’ve asked ${otherName} to confirm they got ${format(done.amount, currency)}. Your balance updates once they do.`
+      : remaining === 0
+        ? `${format(done.amount, currency)} received from ${otherName}.`
+        : `${format(remaining, currency)} still to go with ${otherName}.`;
     return (
       <Screen safeTop={false} scroll={false} footer={<Button label="Done" onPress={() => goBack(`/group/${params.groupId}`)} />}>
         <View className="flex-1 items-center justify-center px-8">
           <SettledCheck size={120} />
           <Animated.View entering={FadeIn.delay(350).duration(300)} style={{ alignItems: 'center' }}>
             <Text variant="title" className="mt-6 text-center">
-              {remaining === 0 ? `You’re settled with ${otherName}.` : 'Payment recorded.'}
+              {title}
             </Text>
             <Text variant="body" tone="muted" className="mt-2 text-center">
-              {remaining === 0
-                ? `${format(done.amount, currency)} ${youPay ? 'paid to' : 'received from'} ${otherName}.`
-                : `${format(remaining, currency)} still to go with ${otherName}.`}
+              {body}
             </Text>
           </Animated.View>
         </View>
@@ -115,7 +128,7 @@ export default function RecordPaymentScreen() {
           label={youPay ? 'Record payment' : 'Mark as paid'}
           onPress={submit}
           loading={record.isPending}
-          disabled={amount <= 0}
+          disabled={amount <= 0 || overLimit}
           accessibilityHint={`Records ${format(amount, currency)}`}
         />
       }>
@@ -129,6 +142,12 @@ export default function RecordPaymentScreen() {
           {detail.group.name}
         </Text>
       </View>
+
+      {youPay && payouts.isSuccess ? (
+        <View className="mt-6">
+          <PayToCard account={payouts.data[otherId]} name={otherName} />
+        </View>
+      ) : null}
 
       <View className="mt-8">
         <SegmentedControl
@@ -148,7 +167,11 @@ export default function RecordPaymentScreen() {
                 Records {formatMoney(amount, currency)} in {detail.group.name}
               </Text>
             ) : null}
-            {tooMuch ? (
+            {overLimit ? (
+              <Text variant="caption" tone="negative" className="text-center">
+                That’s more than {formatMoney(MAX_AMOUNT[currency], currency)}, the most one payment can be. Check the amount.
+              </Text>
+            ) : tooMuch ? (
               <Text variant="caption" tone="muted" className="text-center">
                 That’s more than the {format(suggested, currency)} outstanding — the extra will show as credit.
               </Text>
@@ -167,7 +190,9 @@ export default function RecordPaymentScreen() {
           ))}
         </View>
         <Text variant="caption" tone="faint" className="mt-2">
-          taab records the payment — the money itself moves however you usually pay.
+          {youPay
+            ? `taab records the payment — the money itself moves however you usually pay. ${otherName} confirms it before balances change.`
+            : 'taab records the payment — the money itself moves however you usually pay.'}
         </Text>
       </View>
 

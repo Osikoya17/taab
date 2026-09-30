@@ -13,16 +13,18 @@ import {
 
 import type { ExpenseCategory } from '@/types/models';
 
+import { CATEGORY_LABELS as L } from './category-labels';
+
 export const CATEGORIES: { value: ExpenseCategory; label: string; icon: LucideIcon }[] = [
-  { value: 'food', label: 'Food & drink', icon: UtensilsCrossed },
-  { value: 'transport', label: 'Transport', icon: Car },
-  { value: 'home', label: 'Home', icon: House },
-  { value: 'utilities', label: 'Utilities', icon: Lightbulb },
-  { value: 'groceries', label: 'Groceries', icon: ShoppingBasket },
-  { value: 'entertainment', label: 'Going out', icon: Clapperboard },
-  { value: 'travel', label: 'Travel', icon: Luggage },
-  { value: 'subscriptions', label: 'Subscriptions', icon: Tv },
-  { value: 'other', label: 'Other', icon: Receipt },
+  { value: 'food', label: L.food, icon: UtensilsCrossed },
+  { value: 'transport', label: L.transport, icon: Car },
+  { value: 'home', label: L.home, icon: House },
+  { value: 'utilities', label: L.utilities, icon: Lightbulb },
+  { value: 'groceries', label: L.groceries, icon: ShoppingBasket },
+  { value: 'entertainment', label: L.entertainment, icon: Clapperboard },
+  { value: 'travel', label: L.travel, icon: Luggage },
+  { value: 'subscriptions', label: L.subscriptions, icon: Tv },
+  { value: 'other', label: L.other, icon: Receipt },
 ];
 
 export function categoryMeta(category?: ExpenseCategory) {

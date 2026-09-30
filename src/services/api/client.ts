@@ -36,7 +36,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
     });
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => null);
-      const codes: ServiceErrorCode[] = ['network', 'not_found', 'forbidden', 'validation', 'history_locked', 'limit_reached', 'rate_limited', 'unavailable', 'unknown'];
+      const codes: ServiceErrorCode[] = ['network', 'not_found', 'forbidden', 'validation', 'history_locked', 'limit_reached', 'rate_limited', 'unavailable', 'insufficient_credits', 'already_owned', 'unknown'];
       if (body && typeof body === 'object' && 'code' in body && codes.includes(body.code as ServiceErrorCode)) throw new ServiceError(body.code as ServiceErrorCode);
       throw new ServiceError(response.status === 401 || response.status === 403 ? 'forbidden' : response.status === 404 ? 'not_found' : response.status === 422 || response.status === 400 ? 'validation' : response.status === 429 ? 'rate_limited' : 'unknown');
     }

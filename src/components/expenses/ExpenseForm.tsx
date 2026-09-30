@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
+import { ScanLine } from 'lucide-react-native';
 import { useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { ScrollView, View } from 'react-native';
@@ -8,6 +9,7 @@ import { MoreOptions } from '@/components/expenses/MoreOptions';
 import { ParticipantSelector } from '@/components/expenses/ParticipantSelector';
 import { PayerPicker } from '@/components/expenses/PayerPicker';
 import { SplitBreakdown } from '@/components/expenses/SplitBreakdown';
+import { ScanNotice } from '@/components/scans/ScanNotice';
 import { SheetHeader } from '@/components/ui/AppHeader';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
@@ -15,12 +17,10 @@ import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { FormInput } from '@/components/ui/FormInput';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
-import { CURRENCIES, SUPPORTED_CURRENCIES } from '@/constants/currencies';
-import { FEATURES } from '@/features/billing/products';
+import { CURRENCIES, isWithinAmountLimit, MAX_AMOUNT, SUPPORTED_CURRENCIES } from '@/constants/currencies';
 import { useDisplayCurrency } from '@/features/currency/display';
 import { useExchangeRates } from '@/features/currency/queries';
 import { convertMinor, formatRate, rateBetween } from '@/features/currency/rates';
-import { useEntitlements } from '@/features/billing/use-entitlements';
 import { guessCategory } from '@/features/expenses/categories';
 import {
   buildExpenseInput,
@@ -29,15 +29,16 @@ import {
   expenseFormSchema,
   formValuesFromExpense,
   previewSplit,
+  scanPrefill,
   type ExpenseFormValues,
 } from '@/features/expenses/expense-form';
 import { useSaveExpense } from '@/features/expenses/queries';
-import { enablePushNotifications } from '@/features/notifications/push';
+import { askForNotifications } from '@/features/notifications/prompt';
 import { haptics } from '@/lib/haptics';
 import { captureEvent } from '@/lib/posthog';
 import { isServiceError } from '@/services/api/errors';
 import type { GroupSummary } from '@/services/groups.service';
-import { usePreferences } from '@/store/preferences.store';
+import type { ScanView } from '@/services/scans.service';
 import { toast } from '@/store/toast.store';
 import type { CurrencyCode, Expense, SplitMethod } from '@/types/models';
 import { formatMoney } from '@/utils/money';
@@ -51,16 +52,15 @@ export type ExpenseFormProps = {
   expense?: Expense;
   /** Pre-selects Repeat, e.g. when coming from the recurring screen. */
   initialRepeat?: 'weekly' | 'monthly';
+  /** A receipt scan the person reviewed. Its details are a starting point, never saved unchecked. */
+  scan?: ScanView;
   meId: string;
 };
 
-export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, meId }: ExpenseFormProps) {
+export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, scan, meId }: ExpenseFormProps) {
   const router = useRouter();
   const goBack = useGoBack();
-  const { can } = useEntitlements();
   const save = useSaveExpense(expense?.id);
-  const notificationPromptedAt = usePreferences((s) => s.notificationPromptedAt);
-  const markNotificationPrompted = usePreferences((s) => s.markNotificationPrompted);
 
   const startGroup = groups.find((g) => g.group.id === (expense?.groupId ?? initialGroupId))?.group ?? groups[0]?.group;
 
@@ -68,7 +68,7 @@ export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, me
     resolver: zodResolver(expenseFormSchema),
     defaultValues: expense
       ? formValuesFromExpense(expense)
-      : { ...defaultFormValues(startGroup, meId), repeat: initialRepeat && can(FEATURES.recurringExpenses) ? initialRepeat : 'off' },
+      : { ...defaultFormValues(startGroup, meId), ...scanPrefill(scan), repeat: initialRepeat ?? 'off' },
   });
 
   const values = useWatch({ control }) as ExpenseFormValues;
@@ -80,13 +80,12 @@ export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, me
   // everything is entered in the taab's currency.
   const { display } = useDisplayCurrency();
   const rates = useExchangeRates(true).data;
-  const [chosenEntry, setChosenEntry] = useState<CurrencyCode>(() => (expense ? expense.currency : (display ?? startGroup.currency)));
+  const [chosenEntry, setChosenEntry] = useState<CurrencyCode>(() => (expense ? expense.currency : (scan?.draft?.currency ?? display ?? startGroup.currency)));
   /** The currency being typed in. */
   const entry = rates ? chosenEntry : currency;
   const nameOf = (id: string) => (id === meId ? 'You' : (group.members.find((m) => m.userId === id)?.name ?? 'Someone'));
   const participants = group.members.filter((m) => values.participantIds.includes(m.userId));
   const preview = previewSplit(values, entry, nameOf);
-  const advancedUnlocked = can(FEATURES.advancedSplits);
   const convertedTotal = entry !== currency && rates && values.amount > 0 ? convertMinor(values.amount, entry, currency, rates) : null;
 
   function switchGroup(groupId: string) {
@@ -103,10 +102,6 @@ export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, me
   }
 
   function changeMethod(method: SplitMethod) {
-    if ((method === 'percentage' || method === 'shares') && !advancedUnlocked) {
-      router.push({ pathname: '/subscription', params: { feature: FEATURES.advancedSplits } });
-      return;
-    }
     setValue('splitMethod', method);
     setValue('splitValues', {});
     clearErrors('root');
@@ -120,11 +115,21 @@ export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, me
       return;
     }
     let input = built.input;
+    if (!isWithinAmountLimit(input.amount, entry)) {
+      setError('root', { message: `That’s more than ${formatMoney(MAX_AMOUNT[entry], entry)}, the most one expense can be. Check the amount.` });
+      haptics.warning();
+      return;
+    }
     if (entry !== currency) {
       // Saved in the taab's currency; what was typed is kept alongside.
       const converted = rates ? convertExpenseInput(input, entry, currency, rates) : null;
       if (!converted) {
         setError('root', { message: `That amount is too small to convert to ${currency}.` });
+        haptics.warning();
+        return;
+      }
+      if (!isWithinAmountLimit(converted.amount, currency)) {
+        setError('root', { message: `That comes to more than ${formatMoney(MAX_AMOUNT[currency], currency)} in this taab, the most one expense can be.` });
         haptics.warning();
         return;
       }
@@ -146,17 +151,14 @@ export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, me
       haptics.success();
       toast.success(expense ? 'Expense updated' : 'Expense added', `${built.input.title} • ${formatMoney(built.input.amount, entry)}`);
       goBack();
-      // Ask for push permission in context — once, after the first saved expense.
-      if (!notificationPromptedAt) {
-        markNotificationPrompted();
-        enablePushNotifications().catch(() => undefined);
-      }
+      // Explain notifications in context, right after someone has shared a bill.
+      askForNotifications('expense').catch(() => undefined);
     } catch (error) {
       const message =
         isServiceError(error) && error.code === 'history_locked'
           ? 'This change would affect someone who has settled up and left the taab. Ask them to rejoin before changing their balance.'
-          : isServiceError(error) && error.code === 'forbidden'
-          ? 'That split method needs taab+.'
+          : isServiceError(error) && error.code === 'validation' && values.scanId
+          ? 'That scan can’t be used for this expense. Remove the receipt photo or scan again.'
           : 'We couldn’t save that. Check your connection and try again.';
       setError('root', { message });
     }
@@ -200,6 +202,24 @@ export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, me
           {group.name}
         </Text>
       )}
+
+      {scan?.draft ? (
+        <View className="mt-4">
+          <ScanNotice draft={scan.draft} />
+        </View>
+      ) : !expense ? (
+        <View className="mt-3 items-center">
+          <Button
+            label="Scan a receipt"
+            icon={ScanLine}
+            size="md"
+            variant="ghost"
+            fullWidth={false}
+            // Replaces this blank form, so saving the scanned expense returns to where you started.
+            onPress={() => router.replace({ pathname: '/scan', params: { groupId: values.groupId } })}
+          />
+        </View>
+      ) : null}
 
       <View className="mt-6">
         <Controller
@@ -308,17 +328,14 @@ export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, me
           preview={preview}
           currency={entry}
           meId={meId}
-          advancedUnlocked={advancedUnlocked}
         />
       </View>
 
       <View className="mt-4">
         <MoreOptions
           value={values}
-          defaultOpen={!!expense?.notes || !!expense?.receiptUrl || !!initialRepeat}
+          defaultOpen={!!expense?.notes || !!expense?.receiptUrl || !!initialRepeat || !!scan}
           allowRepeat={!expense}
-          recurringUnlocked={can(FEATURES.recurringExpenses)}
-          onRecurringLocked={() => router.push({ pathname: '/subscription', params: { feature: FEATURES.recurringExpenses } })}
           onChange={(patch) => {
             for (const [key, v] of Object.entries(patch)) setValue(key as keyof ExpenseFormValues, v as never);
           }}

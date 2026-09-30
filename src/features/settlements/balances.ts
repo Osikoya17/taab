@@ -10,6 +10,11 @@ export type Transfer = {
   amount: MinorUnits;
 };
 
+/** Pending and declined payments don't move balances; older payments without a status do. */
+export function countsTowardBalance(settlement: Pick<Settlement, 'status'>): boolean {
+  return (settlement.status ?? 'confirmed') === 'confirmed';
+}
+
 /**
  * Net balance of every member from the raw ledger. Expenses and settlements
  * are never mutated — balances are always derived.

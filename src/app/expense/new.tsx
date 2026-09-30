@@ -9,16 +9,18 @@ import { Screen } from '@/components/ui/Screen';
 import { LoadingSkeleton } from '@/components/ui/Skeleton';
 import { useAuthSession } from '@/features/auth/auth-context';
 import { useGroups } from '@/features/groups/queries';
+import { useScan } from '@/features/packs/queries';
 import { useGoBack } from '@/hooks/use-go-back';
 
 export default function NewExpenseScreen() {
-  const { groupId, repeat } = useLocalSearchParams<{ groupId?: string; repeat?: 'weekly' | 'monthly' }>();
+  const { groupId, repeat, scanId } = useLocalSearchParams<{ groupId?: string; repeat?: 'weekly' | 'monthly'; scanId?: string }>();
   const router = useRouter();
   const goBack = useGoBack();
   const { user } = useAuthSession();
   const groups = useGroups();
+  const scan = useScan(scanId);
 
-  if (!groups.data) {
+  if (!groups.data || (scanId && scan.isPending)) {
     return (
       <Screen safeTop={false} header={<SheetHeader title="Add expense" onCancel={() => goBack()} />}>
         {groups.isError ? (
@@ -46,5 +48,7 @@ export default function NewExpenseScreen() {
     );
   }
 
-  return <ExpenseForm groups={groups.data} initialGroupId={groupId} initialRepeat={repeat} meId={user?.id ?? ''} />;
+  // A scan that isn't finished, or isn't yours, just opens a blank form.
+  const reviewed = scan.data?.status === 'drafted' ? scan.data : undefined;
+  return <ExpenseForm groups={groups.data} initialGroupId={reviewed?.groupId ?? groupId} initialRepeat={repeat} scan={reviewed} meId={user?.id ?? ''} />;
 }

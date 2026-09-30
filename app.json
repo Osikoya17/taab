@@ -18,6 +18,7 @@
     },
     "android": {
       "package": "app.taab.mobile",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#111111",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -48,6 +49,12 @@
       ],
       "@clerk/expo",
       "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "taab uses Face ID so only you can open your taabs."
+        }
+      ],
       "expo-web-browser",
       "expo-apple-authentication",
       [
@@ -68,7 +75,8 @@
         {
           "contactsPermission": "taab uses your contacts so you can invite friends to a taab."
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

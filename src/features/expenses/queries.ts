@@ -29,6 +29,15 @@ export function useExpense(expenseId: string | undefined) {
   });
 }
 
+/** Who created an expense and every change since. */
+export function useExpenseHistory(expenseId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.expenseHistory(expenseId ?? ''),
+    queryFn: () => expensesService.getHistory(expenseId!),
+    enabled: !!expenseId,
+  });
+}
+
 export function useSaveExpense(expenseId?: string) {
   const client = useQueryClient();
   return useMutation({

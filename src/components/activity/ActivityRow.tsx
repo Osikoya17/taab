@@ -30,6 +30,11 @@ export function ActivityRow({ event, meId, showGroup = true, onPress }: Activity
         <Text variant="bodyStrong" numberOfLines={2} className={d.kind === 'removed' ? 'line-through' : undefined}>
           {d.title}
         </Text>
+        {d.detail ? (
+          <Text variant="caption" className="mt-0.5" numberOfLines={1}>
+            {d.detail}
+          </Text>
+        ) : null}
         <Text variant="caption" tone="muted" className="mt-0.5">
           {meta}
         </Text>
@@ -40,7 +45,7 @@ export function ActivityRow({ event, meId, showGroup = true, onPress }: Activity
 
   if (!onPress || !event.expenseId || d.kind === 'removed') return body;
   return (
-    <PressableScale onPress={() => onPress(event)} accessibilityLabel={`${d.title}, ${meta}`} pressedScale={0.99}>
+    <PressableScale onPress={() => onPress(event)} accessibilityLabel={[d.title, d.detail, meta].filter(Boolean).join(', ')} pressedScale={0.99}>
       {body}
     </PressableScale>
   );

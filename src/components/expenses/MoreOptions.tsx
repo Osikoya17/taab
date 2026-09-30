@@ -1,6 +1,4 @@
-import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { Camera, ChevronDown, ChevronLeft, ChevronRight, ImageIcon, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -14,6 +12,7 @@ import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
 import { useColors } from '@/constants/theme';
 import { CATEGORIES } from '@/features/expenses/categories';
+import { pickReceiptPhotos } from '@/features/expenses/receipt-photo';
 import { useReceiptImage } from '@/features/expenses/use-receipt-image';
 import type { ExpenseCategory } from '@/types/models';
 import { dayLabel, longDate } from '@/utils/dates';
@@ -31,28 +30,10 @@ export type MoreOptionsValue = {
 export type MoreOptionsProps = {
   value: MoreOptionsValue;
   onChange: (patch: Partial<MoreOptionsValue>) => void;
-  recurringUnlocked: boolean;
-  onRecurringLocked: () => void;
   /** Recurring rules only make sense when creating, not editing. */
   allowRepeat: boolean;
   defaultOpen?: boolean;
 };
-
-/** Receipts only need to be legible: cap the width and re-encode as JPEG. */
-const RECEIPT_MAX_WIDTH = 1600;
-/** Matches the server limit on the base64 payload. */
-const RECEIPT_MAX_BASE64 = 1_400_000;
-
-async function toReceiptDataUri(asset: ImagePicker.ImagePickerAsset): Promise<string | null> {
-  const context = ImageManipulator.manipulate(asset.uri);
-  if (asset.width > RECEIPT_MAX_WIDTH) context.resize({ width: RECEIPT_MAX_WIDTH, height: null });
-  const image = await context.renderAsync();
-  for (const compress of [0.7, 0.5, 0.35]) {
-    const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress, base64: true });
-    if (saved.base64 && saved.base64.length <= RECEIPT_MAX_BASE64) return `data:image/jpeg;base64,${saved.base64}`;
-  }
-  return null;
-}
 
 function shiftDay(iso: string, days: number) {
   const d = new Date(iso);
@@ -61,7 +42,7 @@ function shiftDay(iso: string, days: number) {
 }
 
 /** Optional fields, tucked away so the default flow stays fast. */
-export function MoreOptions({ value, onChange, recurringUnlocked, onRecurringLocked, allowRepeat, defaultOpen = false }: MoreOptionsProps) {
+export function MoreOptions({ value, onChange, allowRepeat, defaultOpen = false }: MoreOptionsProps) {
   const colors = useColors();
   const [open, setOpen] = useState(defaultOpen);
   const isToday = dayLabel(value.date) === 'Today';
@@ -69,22 +50,17 @@ export function MoreOptions({ value, onChange, recurringUnlocked, onRecurringLoc
 
   async function attachReceipt(source: 'camera' | 'library') {
     try {
-      if (source === 'camera') {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-          toast.error('Camera access is off', 'Allow camera access in Settings, or choose a photo instead.');
-          return;
-        }
+      const result = await pickReceiptPhotos(source);
+      if (result.status === 'no_camera_access') {
+        toast.error('Camera access is off', 'Allow camera access in Settings, or choose a photo instead.');
+        return;
       }
-      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], allowsEditing: false };
-      const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
-      if (result.canceled || !result.assets[0]) return;
-      const receiptUri = await toReceiptDataUri(result.assets[0]);
-      if (!receiptUri) {
+      if (result.status === 'cancelled') return;
+      if (!result.photos[0]) {
         toast.error('That photo is too large', 'Try a different photo of the receipt.');
         return;
       }
-      onChange({ receiptUri });
+      onChange({ receiptUri: result.photos[0] });
     } catch { toast.error('Couldn’t attach the photo', 'Try again.'); }
   }
 
@@ -192,8 +168,7 @@ export function MoreOptions({ value, onChange, recurringUnlocked, onRecurringLoc
                       key={r}
                       label={r === 'off' ? 'Never' : r === 'weekly' ? 'Weekly' : 'Monthly'}
                       selected={value.repeat === r}
-                      locked={r !== 'off' && !recurringUnlocked}
-                      onPress={() => (r !== 'off' && !recurringUnlocked ? onRecurringLocked() : onChange({ repeat: r }))}
+                      onPress={() => onChange({ repeat: r })}
                     />
                   ))}
                 </View>

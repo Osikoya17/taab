@@ -1,12 +1,12 @@
 import { connectService } from './api/service';
-import { FREE_LIMITS } from '@/features/billing/products';
+import { OPERATIONAL_LIMITS } from '@/features/billing/products';
 import { simplifyDebts, totalOutstanding, type Transfer } from '@/features/settlements/balances';
 import { env } from '@/lib/env';
 import type { CurrencyCode, Group, GroupMember, GroupType, MinorUnits } from '@/types/models';
 
 import { ServiceError } from './api/errors';
 import { allowDemoData, createId, read, write, type MockDatabase } from './mock/db';
-import { connectionsOf, groupBalances, groupsForUser, logActivity, requireGroup, touchGroup, userHasPlus } from './mock/ledger';
+import { connectionsOf, groupBalances, groupsForUser, logActivity, replaceUserInChanges, requireGroup, touchGroup } from './mock/ledger';
 import { DIRECTORY_USERS } from './mock/seed';
 import { requireSession } from './session';
 import { groupInputSchema, inviteSchema } from './validation';
@@ -19,9 +19,31 @@ export type GroupSummary = {
   isSettled: boolean;
   expenseCount: number;
   lastActivityAt: string;
+  /** Payments you recorded that the receiver hasn't confirmed; not yet in `myBalance`. */
+  myPendingPaid: MinorUnits;
+  /** Payments to you waiting for your answer; not yet in `myBalance`. */
+  myPendingReceived: MinorUnits;
 };
 
-export type MemberBalance = { userId: string; name: string; avatarUrl?: string; amount: MinorUnits };
+export type MemberBalance = {
+  userId: string;
+  name: string;
+  avatarUrl?: string;
+  amount: MinorUnits;
+  /** Recorded by this member as paid, still waiting for the receiver. */
+  pendingPaid: MinorUnits;
+};
+
+function pendingTotals(db: MockDatabase, groupId: string) {
+  const paid = new Map<string, MinorUnits>();
+  const received = new Map<string, MinorUnits>();
+  for (const s of db.settlements) {
+    if (s.groupId !== groupId || s.status !== 'pending') continue;
+    paid.set(s.fromUserId, (paid.get(s.fromUserId) ?? 0) + s.amount);
+    received.set(s.toUserId, (received.get(s.toUserId) ?? 0) + s.amount);
+  }
+  return { paid, received };
+}
 
 export type GroupDetail = GroupSummary & {
   balances: MemberBalance[];
@@ -47,6 +69,7 @@ export type PersonResult = { userId: string; name: string; email: string };
 function summarize(db: MockDatabase, group: Group, userId: string): GroupSummary {
   const balances = groupBalances(db, group);
   const outstanding = totalOutstanding(balances);
+  const pending = pendingTotals(db, group.id);
   return {
     group,
     myBalance: balances.get(userId) ?? 0,
@@ -54,11 +77,14 @@ function summarize(db: MockDatabase, group: Group, userId: string): GroupSummary
     isSettled: outstanding === 0,
     expenseCount: db.expenses.filter((e) => e.groupId === group.id).length,
     lastActivityAt: group.updatedAt,
+    myPendingPaid: pending.paid.get(userId) ?? 0,
+    myPendingReceived: pending.received.get(userId) ?? 0,
   };
 }
 
 function detail(db: MockDatabase, group: Group, userId: string): GroupDetail {
   const balances = groupBalances(db, group);
+  const pending = pendingTotals(db, group.id);
   return {
     ...summarize(db, group, userId),
     balances: group.members.map((m) => ({
@@ -66,6 +92,7 @@ function detail(db: MockDatabase, group: Group, userId: string): GroupDetail {
       name: m.name,
       avatarUrl: m.avatarUrl,
       amount: balances.get(m.userId) ?? 0,
+      pendingPaid: pending.paid.get(m.userId) ?? 0,
     })),
     transfers: simplifyDebts(balances),
   };
@@ -127,11 +154,8 @@ export const localGroupsService = {
     input = parsed.data;
     const me = requireSession();
     return write((db) => {
-      // Enforced server-side; the client check only shapes the UI.
-      const activeCount = groupsForUser(db, me.userId).length;
-      if (!userHasPlus(db, me.userId) && activeCount >= FREE_LIMITS.activeGroups) {
-        throw new ServiceError('limit_reached');
-      }
+      // An abuse-prevention cap, not a paywall: far above what a person uses.
+      if (groupsForUser(db, me.userId).length >= OPERATIONAL_LIMITS.activeGroups) throw new ServiceError('limit_reached');
       const now = new Date().toISOString();
       const profileName = db.profiles[me.userId]?.name ?? me.name;
       const members: GroupMember[] = [
@@ -197,7 +221,7 @@ export const localGroupsService = {
       const group = db.groups.find((g) => g.id === link.groupId);
       if (!group) throw new ServiceError('not_found');
       if (group.members.some((m) => m.userId === me.userId)) return group;
-      if (!userHasPlus(db, me.userId) && groupsForUser(db, me.userId).length >= FREE_LIMITS.activeGroups) throw new ServiceError('limit_reached');
+      if (groupsForUser(db, me.userId).length >= OPERATIONAL_LIMITS.activeGroups) throw new ServiceError('limit_reached');
       const pending = group.members.find((m) => m.status === 'invited' && m.email?.toLowerCase() === me.email.toLowerCase());
       if (pending) {
         const previousId = pending.userId;
@@ -215,6 +239,7 @@ export const localGroupsService = {
         for (const event of db.activity.filter((e) => e.groupId === group.id)) {
           if (event.actorId === previousId) { event.actorId = me.userId; event.actorName = me.name; }
           if (event.targetUserId === previousId) { event.targetUserId = me.userId; event.targetName = me.name; }
+          replaceUserInChanges(event, previousId, me.userId);
         }
       } else {
         if (group.members.length >= 100) throw new ServiceError('limit_reached');
@@ -251,7 +276,13 @@ export const localGroupsService = {
       const balance = groupBalances(db, group).get(me.userId) ?? 0;
       // You can only leave once you're square, so nobody is left out of pocket.
       if (balance !== 0) throw new ServiceError('validation', 'unsettled_balance');
+      // A payment still waiting for confirmation would move a former member's balance.
+      if (db.settlements.some((s) => s.groupId === groupId && s.status === 'pending' && (s.fromUserId === me.userId || s.toUserId === me.userId))) {
+        throw new ServiceError('validation', 'pending_payment');
+      }
       group.members = group.members.filter((m) => m.userId !== me.userId);
+      // Your account for this taab stops being shown once you leave.
+      delete db.payoutAccounts[me.userId]?.groups[groupId];
       // A repeating bill cannot keep charging someone who has left the group.
       db.recurring = db.recurring.filter((r) => r.groupId !== groupId ||
         (r.createdBy !== me.userId && ![...r.paidBy, ...r.splitBetween].some((p) => p.userId === me.userId)));

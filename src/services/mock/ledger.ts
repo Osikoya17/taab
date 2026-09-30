@@ -1,5 +1,4 @@
-import { hasPlusAccess } from '@/features/billing/access';
-import { computeBalances, type Balances } from '@/features/settlements/balances';
+import { computeBalances, countsTowardBalance, type Balances } from '@/features/settlements/balances';
 import type { ActivityEvent, Group, NotificationCategory } from '@/types/models';
 
 import { ServiceError } from '../api/errors';
@@ -31,7 +30,7 @@ export function groupBalances(db: MockDatabase, group: Group): Balances {
   return computeBalances(
     group.members.map((m) => m.userId),
     db.expenses.filter((e) => e.groupId === group.id),
-    db.settlements.filter((s) => s.groupId === group.id),
+    db.settlements.filter((s) => s.groupId === group.id && countsTowardBalance(s)),
   );
 }
 
@@ -39,34 +38,64 @@ export function memberName(group: Group, userId: string): string {
   return group.members.find((m) => m.userId === userId)?.name ?? 'Someone';
 }
 
-export function userHasPlus(db: MockDatabase, userId: string): boolean {
-  const subscription = db.subscriptions[userId];
-  return subscription ? hasPlusAccess(subscription) : false;
-}
+const CATEGORY_BY_TYPE: Partial<Record<ActivityEvent['type'], NotificationCategory>> = {
+  expense_created: 'new_expense',
+  // Changes to a bill matter as much as new ones, so they share its setting.
+  expense_edited: 'new_expense',
+  payment_recorded: 'payment_received',
+  payment_confirmed: 'settlement',
+  payment_declined: 'settlement',
+  reminder_sent: 'reminder',
+  member_joined: 'member_joined',
+};
 
-export function logActivity(db: MockDatabase, event: Omit<ActivityEvent, 'id' | 'createdAt'> & { createdAt?: string }) {
+/**
+ * Records an event and notifies the rest of the group, or only the target
+ * when there is one. `notice` replaces the default notification wording.
+ */
+export function logActivity(
+  db: MockDatabase,
+  event: Omit<ActivityEvent, 'id' | 'createdAt'> & { createdAt?: string },
+  notice?: { title: string; body: string },
+) {
   const createdAt = event.createdAt ?? new Date().toISOString();
   db.activity.push({ id: createId('a'), ...event, createdAt });
-  const category: NotificationCategory = event.type === 'expense_created' ? 'new_expense'
-    : event.type === 'payment_recorded' ? 'payment_received'
-      : event.type === 'reminder_sent' ? 'reminder'
-        : event.type === 'member_joined' ? 'member_joined' : 'group_activity';
+  const category = CATEGORY_BY_TYPE[event.type] ?? 'group_activity';
   const titles: Record<NotificationCategory, string> = {
-    new_expense: 'New expense', payment_received: 'Payment recorded', reminder: 'A friendly reminder',
+    new_expense: event.type === 'expense_edited' ? 'Expense changed' : 'New expense', payment_received: 'Payment recorded', reminder: 'A friendly reminder',
     member_joined: 'New member', group_activity: 'Group updated', settlement: 'Settlement', recurring_expense: 'Recurring expense',
   };
   const group = db.groups.find((g) => g.id === event.groupId);
   for (const member of group?.members ?? []) {
     if (member.userId === event.actorId || member.status !== 'active') continue;
     if (event.targetUserId && member.userId !== event.targetUserId) continue;
-    if (!(db.notificationPreferences[member.userId]?.[category] ?? category !== 'group_activity')) continue;
-    const notificationId = createId('n');
-    (db.notifications[member.userId] ??= []).push({
-      id: notificationId, category, title: titles[category],
-      body: `${event.actorName} · ${event.title ?? event.groupName}`,
-      groupId: event.groupId, expenseId: event.expenseId, read: false, createdAt,
-    });
-    if (db.pushTokens[member.userId]?.length) db.pushOutbox[notificationId] = { userId: member.userId, notificationId, attempts: 0, nextAttemptAt: createdAt };
+    notifyUser(db, member.userId, category, {
+      title: notice?.title ?? titles[category],
+      body: notice?.body ?? `${event.actorName} · ${event.title ?? event.groupName}`,
+      groupId: event.groupId, expenseId: event.expenseId,
+    }, createdAt);
+  }
+}
+
+/** Adds an in-app notification (and a push, if they have a device) unless the person turned that category off. */
+export function notifyUser(
+  db: MockDatabase,
+  userId: string,
+  category: NotificationCategory,
+  notice: { title: string; body: string; groupId?: string; expenseId?: string },
+  createdAt = new Date().toISOString(),
+) {
+  if (!(db.notificationPreferences[userId]?.[category] ?? category !== 'group_activity')) return;
+  const notificationId = createId('n');
+  (db.notifications[userId] ??= []).push({ id: notificationId, category, ...notice, read: false, createdAt });
+  if (db.pushTokens[userId]?.length) db.pushOutbox[notificationId] = { userId, notificationId, attempts: 0, nextAttemptAt: createdAt };
+}
+
+/** Keeps edit history pointing at the right person when an id is replaced (joining, deleting an account). */
+export function replaceUserInChanges(event: ActivityEvent, fromId: string, toId: string) {
+  for (const change of event.changes ?? []) {
+    if (change.field !== 'paidBy' && change.field !== 'split') continue;
+    for (const person of [...change.from, ...change.to]) if (person.userId === fromId) person.userId = toId;
   }
 }
 

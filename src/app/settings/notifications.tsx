@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Linking, View } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
 
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Button } from '@/components/ui/Button';
@@ -12,7 +12,8 @@ import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
 import { useNotificationPreferences, useUpdateNotificationPreferences } from '@/features/notifications/queries';
 import { enablePushNotifications, getPushPermission } from '@/features/notifications/push';
-import { NOTIFICATION_CATEGORY_LABELS } from '@/services/notifications.service';
+import { isServiceError } from '@/services/api/errors';
+import { NOTIFICATION_CATEGORY_LABELS, notificationsService } from '@/services/notifications.service';
 import { usePreferences } from '@/store/preferences.store';
 import { toast } from '@/store/toast.store';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -27,6 +28,24 @@ export default function NotificationSettingsScreen() {
   const [permission, setPermission] = useState<string | null>(null);
   const [registrationFailed, setRegistrationFailed] = useState(false);
   const [registering, setRegistering] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  /** Asks the server to push to this account's phones, to prove the whole chain works. */
+  async function sendTest() {
+    if (testing) return;
+    setTesting(true);
+    try {
+      if (permission === 'granted' && !(await enablePushNotifications())) {
+        toast.error('This phone couldn’t connect for notifications', 'Check your connection and try again.');
+        return;
+      }
+      const { devices } = await notificationsService.sendTest();
+      if (devices) toast.success('Test sent', `It should arrive on your phone within a minute. Sent to ${devices} ${devices === 1 ? 'device' : 'devices'}.`);
+      else toast.error('No phone is connected yet', 'Tap “Turn on notifications” first, then try again.');
+    } catch (error) {
+      toast.error(isServiceError(error) && error.code === 'rate_limited' ? 'Wait a moment before sending another' : 'Couldn’t send the test', isServiceError(error) && error.code === 'rate_limited' ? undefined : 'Check your connection and try again.');
+    } finally { setTesting(false); }
+  }
 
   useEffect(() => {
     getPushPermission()
@@ -54,7 +73,13 @@ export default function NotificationSettingsScreen() {
 
   return (
     <Screen header={<AppHeader back title="Notifications" />}>
-      {permission === 'unsupported' ? <Text variant="caption" tone="muted" className="mt-3">Push notifications aren’t available in this version of taab. Your notification inbox still works.</Text> : permission !== null && (permission !== 'granted' || registrationFailed) ? (
+      {permission === 'unsupported' ? (
+        <Text variant="caption" tone="muted" className="mt-3">
+          {Platform.OS === 'web'
+            ? 'Push notifications come through the taab phone app. On the web, everything still appears in your notification inbox (the bell on Home).'
+            : 'Push notifications don’t work in Expo Go. Install the taab app to get them. Your notification inbox still works.'}
+        </Text>
+      ) : permission !== null && (permission !== 'granted' || registrationFailed) ? (
         <Surface className="mt-2 gap-3">
           <View>
             <Text variant="bodyStrong">{registrationFailed ? 'Notifications couldn’t connect' : 'Push notifications are off'}</Text>
@@ -63,6 +88,18 @@ export default function NotificationSettingsScreen() {
             </Text>
           </View>
           <Button label={registrationFailed ? 'Retry setup' : permission === 'denied' ? 'Open settings' : 'Turn on notifications'} size="md" onPress={turnOn} loading={registering} />
+        </Surface>
+      ) : null}
+
+      {permission === 'granted' && !registrationFailed ? (
+        <Surface className="mt-2 gap-3">
+          <View>
+            <Text variant="bodyStrong">Notifications are on</Text>
+            <Text variant="caption" tone="muted" className="mt-0.5">
+              Not getting them? Send yourself a test to check this phone.
+            </Text>
+          </View>
+          <Button label="Send a test notification" size="md" variant="secondary" onPress={sendTest} loading={testing} />
         </Surface>
       ) : null}
 

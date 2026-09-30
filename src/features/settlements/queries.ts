@@ -4,10 +4,23 @@ import { invalidateLedger } from '@/lib/invalidate';
 import { queryKeys } from '@/lib/query-keys';
 import { queryClient } from '@/lib/query-client';
 import { remindersService } from '@/services/reminders.service';
-import { settlementsService, type RecordSettlementInput } from '@/services/settlements.service';
+import { settlementsService, type RecordSettlementInput, type SettlementResponse } from '@/services/settlements.service';
 
 export function useSettleSuggestions(groupId?: string) {
   return useQuery({ queryKey: queryKeys.settle(groupId), queryFn: () => settlementsService.getSuggestions(groupId) });
+}
+
+/** Payments waiting for a receiver to confirm them, across all your taabs. */
+export function usePendingPayments() {
+  return useQuery({ queryKey: queryKeys.pendingPayments, queryFn: () => settlementsService.listPending() });
+}
+
+export function useRespondToSettlement() {
+  return useMutation({
+    mutationFn: ({ settlementId, response }: { settlementId: string; response: SettlementResponse }) =>
+      settlementsService.respondToSettlement(settlementId, response),
+    onSuccess: () => invalidateLedger(),
+  });
 }
 
 export function useRecordSettlement() {

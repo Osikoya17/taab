@@ -3,6 +3,7 @@ import { DEFAULT_CURRENCY } from '@/constants/currencies';
 import type { CurrencyCode, UseCase, UserProfile } from '@/types/models';
 
 import { allowDemoData, createId, read, write } from './mock/db';
+import { replaceUserInChanges } from './mock/ledger';
 import { seedDemoData } from './mock/seed';
 import { requireSession, type SessionIdentity } from './session';
 import { ServiceError } from './api/errors';
@@ -93,6 +94,7 @@ export const localUsersService = {
       delete db.pushTokens[me.userId];
       delete db.notificationPreferences[me.userId];
       delete db.pendingDeletions[me.userId];
+      delete db.payoutAccounts[me.userId];
       for (const [id, job] of Object.entries(db.pushOutbox)) if (job.userId === me.userId) delete db.pushOutbox[id];
       const ownGroups = new Set(db.groups.filter((g) => g.members.every((m) => m.userId === me.userId)).map((g) => g.id));
       const anonymousId = createId('deleted');
@@ -120,6 +122,7 @@ export const localUsersService = {
       for (const event of db.activity) {
         if (event.actorId === me.userId) { event.actorId = anonymousId; event.actorName = 'Deleted member'; }
         if (event.targetUserId === me.userId) { event.targetUserId = anonymousId; event.targetName = 'Deleted member'; }
+        replaceUserInChanges(event, me.userId, anonymousId);
       }
       // Notification text can contain the former display name; activity remains available.
       for (const group of db.groups.filter((g) => g.members.some((m) => m.userId === anonymousId))) {

@@ -1,6 +1,5 @@
 import { createClerkClient, verifyToken } from '@clerk/backend';
 
-import { FREE_SUBSCRIPTION, type SubscriptionState } from '../src/features/billing/types';
 import { ServiceError } from '../src/services/api/errors';
 import type { ApiOptions } from './api';
 
@@ -25,7 +24,7 @@ export function authorizedPartiesFor(token: string, authorizedParties: string[])
   return tokenAzp(token) === undefined ? undefined : authorizedParties;
 }
 
-export function clerkServices(secretKey: string, authorizedParties: string[]): Required<Pick<ApiOptions, 'authenticate' | 'getSubscription' | 'deleteIdentity'>> {
+export function clerkServices(secretKey: string, authorizedParties: string[]): Required<Pick<ApiOptions, 'authenticate' | 'deleteIdentity'>> {
   const clerk = createClerkClient({ secretKey });
   return {
     async authenticate(request) {
@@ -54,28 +53,6 @@ export function clerkServices(secretKey: string, authorizedParties: string[]): R
       } catch (error) {
         if (error instanceof ServiceError) throw error;
         return reject('could not load the user from Clerk');
-      }
-    },
-    async getSubscription(userId): Promise<SubscriptionState> {
-      if (process.env.CLERK_BILLING_ENABLED !== 'true') return FREE_SUBSCRIPTION;
-      try {
-        const subscription = await clerk.billing.getUserBillingSubscription(userId);
-        const item = subscription.subscriptionItems
-          .filter((entry) => entry.plan?.slug === 'plus')
-          .sort((a, b) => b.updatedAt - a.updatedAt)[0];
-        if (!item) return FREE_SUBSCRIPTION;
-        const status = item.status === 'active' ? item.isFreeTrial ? 'trialing' : 'active'
-          : item.status === 'past_due' ? 'past_due' : item.status === 'canceled' ? 'canceled' : 'expired';
-        return {
-          plan: item.planPeriod === 'annual' ? 'plus_yearly' : 'plus_monthly', status, source: 'clerk',
-          currentPeriodEnd: item.periodEnd ? new Date(item.periodEnd).toISOString() : undefined,
-          trialEndsAt: item.isFreeTrial && item.periodEnd ? new Date(item.periodEnd).toISOString() : undefined,
-          graceEndsAt: item.pastDueAt ? new Date(item.pastDueAt + 7 * 86400_000).toISOString() : undefined,
-          updatedAt: new Date(item.updatedAt).toISOString(),
-        };
-      } catch (error) {
-        if (error && typeof error === 'object' && 'status' in error && error.status === 404) return FREE_SUBSCRIPTION;
-        throw new ServiceError('unavailable');
       }
     },
     async deleteIdentity(userId) {

@@ -7,14 +7,18 @@ import { ServiceError, type ServiceErrorCode } from '../src/services/api/errors'
 import { localExpensesService } from '../src/services/expenses.service';
 import { localGroupsService } from '../src/services/groups.service';
 import { localNotificationsService } from '../src/services/notifications.service';
+import { expireStalePurchases, localPacksService, reconcileByReference } from '../src/services/packs.service';
+import { localPayoutsService } from '../src/services/payouts.service';
+import { localReportsService } from '../src/services/reports.service';
+import { INTERRUPTED_AFTER_MS, localScansService, recoverInterruptedScans, scanInputSchema } from '../src/services/scans.service';
 import { localRecurringService } from '../src/services/recurring.service';
 import { localRemindersService } from '../src/services/reminders.service';
-import { localSettlementsService } from '../src/services/settlements.service';
+import { localSettlementsService, paymentsDueForReminder, remindPendingPayments } from '../src/services/settlements.service';
 import { setSessionProvider, type SessionIdentity } from '../src/services/session';
 import { localUsersService } from '../src/services/users.service';
 import { read, write } from '../src/services/mock/db';
-import { FREE_SUBSCRIPTION, type SubscriptionState } from '../src/features/billing/types';
-import { expenseInputSchema, groupInputSchema, idSchema, inviteSchema, profilePatchSchema, recurringInputSchema, repeatSchema, settlementSchema, setupSchema } from '../src/services/validation';
+import { expenseInputSchema, groupInputSchema, idSchema, inviteSchema, payoutAccountSchema, profilePatchSchema, recurringInputSchema, repeatSchema, settlementSchema, setupSchema } from '../src/services/validation';
+import { validPaystackSignature, webhookReference } from './payments/paystack';
 import type { ReceiptStore } from './storage';
 
 const session = new AsyncLocalStorage<SessionIdentity>();
@@ -46,9 +50,12 @@ const operations: Record<string, Operation> = {
   'expenses/createExpense': operation(z.tuple([expenseInputSchema, repeatSchema.nullish()]), (input, repeat) => localExpensesService.createExpense(input, repeat ?? undefined)),
   'expenses/updateExpense': operation(z.tuple([idSchema, expenseInputSchema]), localExpensesService.updateExpense),
   'expenses/deleteExpense': operation(id, localExpensesService.deleteExpense),
+  'expenses/getHistory': operation(id, localExpensesService.getHistory),
   'settlements/getSuggestions': operation(z.tuple([idSchema.nullish()]), (groupId) => localSettlementsService.getSuggestions(groupId ?? undefined)),
   'settlements/listGroupSettlements': operation(id, localSettlementsService.listGroupSettlements),
   'settlements/recordSettlement': operation(z.tuple([settlementSchema]), localSettlementsService.recordSettlement),
+  'settlements/listPending': operation(none, localSettlementsService.listPending),
+  'settlements/respondToSettlement': operation(z.tuple([idSchema, z.enum(['confirm', 'decline'])]), localSettlementsService.respondToSettlement),
   'activity/listActivity': operation(z.tuple([z.object({ before: z.string().max(300).optional(), groupId: idSchema.optional() }).nullish()]), (filter) => localActivityService.listActivity(filter ?? undefined)),
   'recurring/list': operation(id, localRecurringService.list),
   'recurring/create': operation(z.tuple([recurringInputSchema]), localRecurringService.create),
@@ -60,21 +67,39 @@ const operations: Record<string, Operation> = {
   'notifications/markAllRead': operation(none, localNotificationsService.markAllRead),
   'notifications/getPreferences': operation(none, localNotificationsService.getPreferences),
   'notifications/updatePreferences': operation(z.tuple([preferences]), localNotificationsService.updatePreferences),
+  'notifications/sendTest': operation(none, localNotificationsService.sendTest),
   'notifications/registerPushToken': operation(z.tuple([z.string().regex(/^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/)]), localNotificationsService.registerPushToken),
   'reminders/getStatus': operation(z.tuple([idSchema, idSchema]), localRemindersService.getStatus),
   'reminders/sendReminder': operation(z.tuple([z.object({ groupId: idSchema, toUserId: idSchema, message: z.string().trim().min(1).max(500) })]), localRemindersService.sendReminder),
+  'packs/getCatalog': operation(none, localPacksService.getCatalog),
+  'packs/getBalances': operation(none, localPacksService.getBalances),
+  'packs/getGroupPack': operation(id, localPacksService.getGroupPack),
+  'packs/listPurchases': operation(none, localPacksService.listPurchases),
+  'packs/startPurchase': operation(z.tuple([z.object({ productId: z.enum(['receipt_scan_pack', 'trip_pack']), groupId: idSchema.optional() }).strict()]), localPacksService.startPurchase),
+  'packs/confirmPurchase': operation(id, localPacksService.confirmPurchase),
+  // Refused by the service unless this server runs demo checkout (never in production).
+  'packs/completeDemoPurchase': operation(z.tuple([idSchema, z.enum(['success', 'cancelled'])]), localPacksService.completeDemoPurchase),
+  'scans/startScan': operation(z.tuple([scanInputSchema]), localScansService.startScan),
+  'scans/getScan': operation(id, localScansService.getScan),
+  'scans/listScans': operation(z.tuple([z.object({ batchId: z.string().max(100).optional() }).strict().nullish()]), (filter) => localScansService.listScans(filter ?? undefined)),
+  'reports/getGroupReport': operation(id, localReportsService.getGroupReport),
+  'payouts/getMine': operation(none, localPayoutsService.getMine),
+  'payouts/setDefault': operation(z.tuple([payoutAccountSchema.nullable()]), localPayoutsService.setDefault),
+  'payouts/setForGroup': operation(z.tuple([idSchema, payoutAccountSchema.nullable()]), localPayoutsService.setForGroup),
+  'payouts/getGroupAccounts': operation(id, localPayoutsService.getGroupAccounts),
 };
-const statuses: Record<ServiceErrorCode, number> = { forbidden: 403, validation: 422, history_locked: 409, not_found: 404, limit_reached: 409, rate_limited: 429, network: 503, unavailable: 503, unknown: 500 };
+const statuses: Record<ServiceErrorCode, number> = { forbidden: 403, validation: 422, history_locked: 409, not_found: 404, limit_reached: 409, rate_limited: 429, network: 503, unavailable: 503, insufficient_credits: 402, already_owned: 409, unknown: 500 };
 
 export type ApiOptions = {
   authenticate: (request: IncomingMessage) => Promise<SessionIdentity>;
   allowedOrigins: string[];
-  getSubscription?: (userId: string) => Promise<SubscriptionState>;
   deleteIdentity?: (userId: string) => Promise<void>;
   /** Stores receipt photos outside the ledger. Without it they stay inline. */
   receipts?: ReceiptStore;
   /** Behind exactly one reverse proxy: rate-limit by the address it reports. */
   trustProxy?: boolean;
+  /** Paystack's secret key, used to check webhook signatures. */
+  paystackSecret?: string;
 };
 
 const RECEIPT_PREFIX = '/receipts/';
@@ -115,6 +140,23 @@ export function createApi(options: ApiOptions) {
       }
       const path = new URL(request.url ?? '/', 'http://localhost').pathname;
       if (path === '/health' && request.method === 'GET') { send(200, { ok: true }); return; }
+      if (path === '/webhooks/paystack' && request.method === 'POST') {
+        // Paystack calls this, not a signed-in person, so it is checked by signature instead.
+        if (!options.paystackSecret) throw new ServiceError('not_found');
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of request) {
+          size += chunk.length;
+          if (size > 100_000) throw new ServiceError('validation');
+          chunks.push(Buffer.from(chunk));
+        }
+        const raw = Buffer.concat(chunks);
+        if (!validPaystackSignature(raw, request.headers['x-paystack-signature'] as string | undefined, options.paystackSecret)) throw new ServiceError('forbidden');
+        const reference = webhookReference(JSON.parse(raw.toString('utf8')));
+        // The event only says which payment to look at; Paystack's verify API decides what happened.
+        if (reference) await reconcileByReference(reference);
+        send(200, { ok: true }); return;
+      }
       // Bound memory and request work before contacting the identity provider.
       const now = Date.now();
       for (const [key, value] of limits) if (value.until <= now) limits.delete(key);
@@ -124,20 +166,14 @@ export function createApi(options: ApiOptions) {
       limits.set(ip, rate);
       const identity = await options.authenticate(request);
       await session.run(identity, async () => {
-        if (path.startsWith('/billing/')) {
-          if ((path === '/billing/subscription' && request.method === 'GET') || (path === '/billing/restore' && request.method === 'POST')) {
-            const subscription = await options.getSubscription?.(identity.userId) ?? FREE_SUBSCRIPTION;
-            await write((db) => { db.subscriptions[identity.userId] = subscription; });
-            send(200, subscription); return;
-          }
-          throw new ServiceError('unavailable');
-        }
         const receiptMatch = path.match(RECEIPT_PATH);
         if (receiptMatch) {
           if (request.method !== 'GET' || !options.receipts) throw new ServiceError('not_found');
-          // Only members of the group whose expense references the receipt may read it.
+          // Members of the group whose expense references the receipt may read it, and
+          // the person who scanned it may read it while reviewing the draft.
           const allowed = await read((db) => db.expenses.some((e) => e.receiptUrl === path &&
-            db.groups.some((g) => g.id === e.groupId && g.members.some((m) => m.userId === identity.userId))));
+            db.groups.some((g) => g.id === e.groupId && g.members.some((m) => m.userId === identity.userId))) ||
+            Object.values(db.scanJobs).some((j) => j.receiptUrl === path && j.userId === identity.userId));
           const uri = allowed ? options.receipts.get(receiptMatch[1]) : null;
           if (!uri) throw new ServiceError('not_found');
           send(200, { uri }); return;
@@ -166,9 +202,12 @@ export function createApi(options: ApiOptions) {
               body.args[index] = { ...(body.args[index] as Record<string, unknown>), receiptUrl: stored };
             }
           } else if (receipt) {
-            // Only an edit may keep the stored receipt that expense already has.
-            const current = key === 'expenses/updateExpense' ? await read((db) => db.expenses.find((e) => e.id === body.args[0])?.receiptUrl) : undefined;
-            if (receipt !== current) throw new ServiceError('validation');
+            // An edit may keep the stored receipt that expense already has; a new
+            // expense may use the photo from your own finished scan.
+            const allowed = key === 'expenses/updateExpense'
+              ? await read((db) => db.expenses.find((e) => e.id === body.args[0])?.receiptUrl === receipt)
+              : await read((db) => Object.values(db.scanJobs).some((j) => j.userId === identity.userId && j.status === 'drafted' && j.receiptUrl === receipt));
+            if (!allowed) throw new ServiceError('validation');
           }
         }
         if (key === 'users/deleteAccountData' && options.deleteIdentity) {
@@ -176,10 +215,6 @@ export function createApi(options: ApiOptions) {
           // A durable job lets the worker finish cleanup if the process stops after identity deletion.
           await write((db) => { db.pendingDeletions[identity.userId] = identity; });
           await options.deleteIdentity(identity.userId);
-        }
-        if (options.getSubscription && ['groups/createGroup', 'groups/joinGroup', 'expenses/createExpense', 'expenses/updateExpense', 'recurring/create', 'recurring/processDue', 'recurring/confirmDue', 'recurring/skipDue', 'activity/listActivity'].includes(key)) {
-          const subscription = await options.getSubscription(identity.userId);
-          await write((db) => { db.subscriptions[identity.userId] = subscription; });
         }
         send(200, await operations[key](body.args));
       });
@@ -214,14 +249,37 @@ export async function migrateInlineReceipts(receipts: ReceiptStore): Promise<num
   });
 }
 
-/** Deletes stored receipts whose expense was deleted or edited, after a day's grace. */
-export async function pruneReceipts(receipts: ReceiptStore) {
-  const referenced = await read((db) => db.expenses.flatMap((e) => e.receiptUrl?.startsWith(RECEIPT_PREFIX) ? [e.receiptUrl.slice(RECEIPT_PREFIX.length)] : []));
+/** Scanned photos nobody turned into an expense are kept this long for review, then deleted. */
+const UNUSED_SCAN_PHOTO_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Deletes stored receipts no expense or recent scan uses, after a day's grace. */
+export async function pruneReceipts(receipts: ReceiptStore, now = Date.now()) {
+  const referenced = await read((db) => [
+    ...db.expenses.map((e) => e.receiptUrl),
+    ...Object.values(db.scanJobs).filter((j) => now - Date.parse(j.updatedAt) < UNUSED_SCAN_PHOTO_MS).map((j) => j.receiptUrl),
+  ].flatMap((url) => url?.startsWith(RECEIPT_PREFIX) ? [url.slice(RECEIPT_PREFIX.length)] : []));
   receipts.prune(new Set(referenced), 24 * 60 * 60 * 1000);
 }
 
+/**
+ * Returns credits held by scans that were cut off (a restart mid-scan) and
+ * marks day-old unfinished checkouts as expired. Runs on startup and every minute.
+ */
+export async function processPackMaintenance(now = Date.now()) {
+  const stuck = await read((db) => Object.values(db.scanJobs).some((j) => j.status === 'reserved' && now - Date.parse(j.updatedAt) >= INTERRUPTED_AFTER_MS));
+  const recovered = stuck ? await write((db) => recoverInterruptedScans(db, now)) : 0;
+  const expired = await expireStalePurchases(now);
+  return { recovered, expired };
+}
+
+/** Reminds receivers about payments waiting more than a day. Only writes when one is due. */
+export async function processPaymentReminders() {
+  if (!(await read((db) => paymentsDueForReminder(db).length))) return 0;
+  return write((db) => remindPendingPayments(db));
+}
+
 /** Scheduled by the single server process, independent of whether the app is open. */
-export async function processRecurring(getSubscription?: ApiOptions['getSubscription']) {
+export async function processRecurring() {
   const profiles = await read((db) => {
     const owners = new Set(db.recurring.filter((r) => Date.parse(r.nextDate) <= Date.now()).map((r) => r.createdBy));
     return Object.values(db.profiles).filter((p) => owners.has(p.id) && !db.pendingDeletions[p.id]);
@@ -229,10 +287,6 @@ export async function processRecurring(getSubscription?: ApiOptions['getSubscrip
   let failed = 0;
   for (const profile of profiles) {
     try { await session.run({ userId: profile.id, name: profile.name, email: profile.email, createdAt: profile.createdAt }, async () => {
-      if (getSubscription) {
-        const subscription = await getSubscription(profile.id);
-        await write((db) => { db.subscriptions[profile.id] = subscription; });
-      }
       await localRecurringService.processDue();
     }); } catch { failed++; }
   }

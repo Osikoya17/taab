@@ -3,19 +3,21 @@ import {
   Bell,
   CircleHelp,
   Coins,
+  Fingerprint,
   Info,
+  Landmark,
   LogOut,
   Palette,
   Send,
   ShieldCheck,
-  Sparkles,
+  ScanLine,
   Trash2,
   UserRound,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Share, View } from 'react-native';
+import { Platform, Share, View } from 'react-native';
 
-import { SubscriptionCard } from '@/components/billing/SubscriptionCard';
+import { ExtrasCard } from '@/components/billing/ExtrasCard';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Avatar } from '@/components/ui/Avatar';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -27,7 +29,6 @@ import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { CURRENCIES } from '@/constants/currencies';
 import { useAuthActions, useAuthSession } from '@/features/auth/auth-context';
-import { useEntitlements } from '@/features/billing/use-entitlements';
 import { useProfile } from '@/features/profile/queries';
 import { env } from '@/lib/env';
 import { usersService } from '@/services/users.service';
@@ -54,11 +55,11 @@ export default function ProfileScreen() {
   const { user } = useAuthSession();
   const actions = useAuthActions();
   const { data: profile } = useProfile();
-  const { isPlus, subscription } = useEntitlements();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const appearance = usePreferences((s) => s.appearance);
+  const biometricLock = usePreferences((s) => s.biometricLock);
 
   const name = profile?.name ?? user?.fullName ?? '';
   const email = profile?.email ?? user?.email ?? '';
@@ -110,7 +111,7 @@ export default function ProfileScreen() {
       </View>
 
       <View className="mt-6">
-        <SubscriptionCard subscription={subscription} isPlus={isPlus} onPress={() => router.push('/subscription')} />
+        <ExtrasCard onPress={() => router.push('/extras')} />
       </View>
 
       <Section title="Account">
@@ -123,13 +124,15 @@ export default function ProfileScreen() {
           onPress={() => router.push('/settings/currency')}
         />
         <Divider inset={60} />
+        <ListRow icon={Landmark} title="Bank account" detail="Where friends pay you back" onPress={() => router.push('/settings/payout')} />
+        <Divider inset={60} />
         <ListRow icon={Bell} title="Notifications" onPress={() => router.push('/settings/notifications')} />
         <Divider inset={60} />
         <ListRow icon={Palette} title="Appearance" value={appearance === 'system' ? 'System' : appearance === 'dark' ? 'Dark' : 'Light'} onPress={() => router.push('/settings/appearance')} />
       </Section>
 
       <Section title="taab">
-        <ListRow icon={Sparkles} title="taab+" value={isPlus ? 'Active' : undefined} onPress={() => router.push('/subscription')} />
+        <ListRow icon={ScanLine} title="Extras" onPress={() => router.push('/extras')} />
         <Divider inset={60} />
         <ListRow
           icon={Send}
@@ -145,6 +148,14 @@ export default function ProfileScreen() {
       </Section>
 
       <Section title="Security">
+        <ListRow
+          icon={Fingerprint}
+          title="App lock"
+          detail={Platform.OS === 'web' ? 'Fingerprint or Face ID, in the phone app' : 'Fingerprint or Face ID'}
+          value={Platform.OS === 'web' ? undefined : biometricLock ? 'On' : 'Off'}
+          onPress={() => router.push('/settings/security')}
+        />
+        <Divider inset={60} />
         <ListRow icon={ShieldCheck} title="Manage account" onPress={() => router.push('/settings/account')} />
         <Divider inset={60} />
         <ListRow icon={LogOut} title="Sign out" showChevron={false} onPress={() => setConfirmSignOut(true)} />

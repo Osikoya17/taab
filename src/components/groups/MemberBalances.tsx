@@ -4,6 +4,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Money } from '@/components/ui/Money';
 import { Text } from '@/components/ui/Text';
 import { useColors } from '@/constants/theme';
+import { useDisplayCurrency } from '@/features/currency/display';
 import type { MemberBalance } from '@/services/groups.service';
 import type { CurrencyCode } from '@/types/models';
 
@@ -13,6 +14,7 @@ import type { CurrencyCode } from '@/types/models';
  */
 export function MemberBalances({ balances, currency, meId }: { balances: MemberBalance[]; currency: CurrencyCode; meId: string }) {
   const colors = useColors();
+  const { format } = useDisplayCurrency();
   const max = Math.max(1, ...balances.map((b) => Math.abs(b.amount)));
   const sorted = [...balances].sort((a, b) => (a.userId === meId ? -1 : b.userId === meId ? 1 : b.amount - a.amount));
 
@@ -24,7 +26,7 @@ export function MemberBalances({ balances, currency, meId }: { balances: MemberB
         const isMe = b.userId === meId;
         const status = b.amount > 0 ? (isMe ? 'get back' : 'gets back') : b.amount < 0 ? (isMe ? 'owe' : 'owes') : 'settled';
         return (
-          <View key={b.userId} className="flex-row items-center gap-3" accessible accessibilityLabel={`${name} ${status}`}>
+          <View key={b.userId} className="flex-row items-center gap-3" accessible accessibilityLabel={`${name} ${status}${b.pendingPaid > 0 ? `, ${format(b.pendingPaid, currency)} paid and waiting for confirmation` : ''}`}>
             <Avatar name={b.name} uri={b.avatarUrl} seed={b.userId} size={32} />
             <View className="flex-1 gap-1.5">
               <View className="flex-row items-baseline justify-between">
@@ -37,6 +39,11 @@ export function MemberBalances({ balances, currency, meId }: { balances: MemberB
                 </Text>
                 <Money amount={b.amount} currency={currency} size="small" tone="auto" sign="always" />
               </View>
+              {b.pendingPaid > 0 ? (
+                <Text variant="caption" tone="muted">
+                  {format(b.pendingPaid, currency)} paid · waiting for confirmation
+                </Text>
+              ) : null}
               <View className="h-1 overflow-hidden rounded-full bg-sunken">
                 <View
                   style={{

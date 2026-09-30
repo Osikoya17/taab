@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { ScanDraft } from '@/features/billing/types';
 import { convertMinor, rateBetween, type ExchangeRates } from '@/features/currency/rates';
 import type { ExpenseInput } from '@/services/expenses.service';
 import type { CurrencyCode, Expense, ExpenseCategory, ExpenseSplit, Group, MinorUnits, SplitMethod } from '@/types/models';
@@ -21,6 +22,8 @@ export const expenseFormSchema = z.object({
   notes: z.string().max(500),
   category: z.string().optional(),
   receiptUri: z.string().optional(),
+  /** The reviewed receipt scan this expense was filled from. */
+  scanId: z.string().optional(),
   repeat: z.enum(['off', 'weekly', 'monthly']),
   repeatAuto: z.boolean(),
 });
@@ -215,7 +218,25 @@ export function buildExpenseInput(values: ExpenseFormValues, currency: CurrencyC
       category: values.category as ExpenseCategory | undefined,
       notes: values.notes.trim() || undefined,
       receiptUrl: values.receiptUri,
+      scanId: values.scanId,
     },
     recurring: values.repeat === 'off' ? undefined : { frequency: values.repeat, autoCreate: values.repeatAuto },
+  };
+}
+
+/**
+ * A reviewed scan as starting values. Anything the scanner didn't read stays
+ * empty for the person to fill in, and a future date falls back to today.
+ */
+export function scanPrefill(scan?: { id: string; receiptUrl: string; draft?: ScanDraft }, now = new Date()): Partial<ExpenseFormValues> {
+  if (!scan?.draft) return {};
+  const { merchant, total, date } = scan.draft;
+  const day = date ? new Date(`${date}T12:00:00`) : null;
+  return {
+    title: (merchant ?? '').slice(0, 80),
+    amount: total ?? 0,
+    date: day && !Number.isNaN(day.getTime()) && day <= now ? day.toISOString() : now.toISOString(),
+    receiptUri: scan.receiptUrl,
+    scanId: scan.id,
   };
 }

@@ -21,7 +21,7 @@ export function Chip({ label, selected = false, onPress, icon: Icon, locked }: C
     <PressableScale
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={locked ? `${label}, taab+ feature` : label}
+      accessibilityLabel={locked ? `${label}, locked` : label}
       accessibilityState={{ selected }}
       pressedScale={0.96}
       className={cx(

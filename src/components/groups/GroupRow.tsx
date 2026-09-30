@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 
+import { PendingBalanceNote } from '@/components/settlements/PendingBalanceNote';
 import { AvatarStack } from '@/components/ui/AvatarStack';
 import { BalanceBadge } from '@/components/ui/BalanceBadge';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -29,6 +30,9 @@ export function GroupRow({ summary, onPress }: { summary: GroupSummary; onPress:
         </Text>
         <View className="mt-2">
           <BalanceBadge amount={myBalance} currency={group.currency} groupSettled={summary.isSettled} />
+        </View>
+        <View className="mt-1.5">
+          <PendingBalanceNote paid={summary.myPendingPaid} received={summary.myPendingReceived} currency={group.currency} />
         </View>
       </View>
     </PressableScale>

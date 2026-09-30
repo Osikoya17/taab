@@ -6,6 +6,8 @@ import { FlatList, RefreshControl, Share, View } from 'react-native';
 import { ExpenseRow, SettlementRow } from '@/components/expenses/ExpenseRow';
 import { GroupMenu } from '@/components/groups/GroupMenu';
 import { MemberBalances } from '@/components/groups/MemberBalances';
+import { TripPackCard } from '@/components/groups/TripPackCard';
+import { PendingBalanceNote } from '@/components/settlements/PendingBalanceNote';
 import { ActionTile } from '@/components/ui/ActionTile';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { AvatarStack } from '@/components/ui/AvatarStack';
@@ -23,9 +25,7 @@ import { BalanceSkeleton, LoadingSkeleton } from '@/components/ui/Skeleton';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { useAuthSession } from '@/features/auth/auth-context';
-import { FEATURES } from '@/features/billing/products';
 import { useDisplayCurrency } from '@/features/currency/display';
-import { useEntitlements, usePremiumGate } from '@/features/billing/use-entitlements';
 import { useGroupExpenses, useGroupSettlements } from '@/features/expenses/queries';
 import { groupSummaryText } from '@/features/groups/export';
 import { useGroup, useLeaveGroup } from '@/features/groups/queries';
@@ -48,8 +48,6 @@ export default function GroupDetailScreen() {
   const expenses = useGroupExpenses(id);
   const settlements = useGroupSettlements(id);
   const leave = useLeaveGroup();
-  const { can } = useEntitlements();
-  const guard = usePremiumGate();
   const bottomInset = useBottomInset(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -61,10 +59,9 @@ export default function GroupDetailScreen() {
     ...(settlements.data ?? []).map((item) => ({ kind: 'payment' as const, at: item.createdAt, item })),
   ].sort((a, b) => b.at.localeCompare(a.at));
 
+  /** Basic export is free: a plain-text summary anyone in the taab can share. */
   function exportSummary() {
-    guard(FEATURES.exportHistory, () => {
-      if (detail) Share.share({ message: groupSummaryText(detail, expenses.data ?? []) }).catch(() => undefined);
-    });
+    if (detail) Share.share({ message: groupSummaryText(detail, expenses.data ?? []) }).catch(() => undefined);
   }
 
   async function leaveGroup() {
@@ -77,7 +74,7 @@ export default function GroupDetailScreen() {
       setConfirmLeave(false);
       toast.error(
         isServiceError(error) && error.code === 'validation' ? 'Settle up before leaving' : 'Couldn’t leave right now',
-        isServiceError(error) && error.code === 'validation' ? 'You can leave once your balance is zero.' : 'Check your connection and try again.',
+        isServiceError(error) && error.code === 'validation' ? 'You can leave once your balance is zero and no payments are waiting to be confirmed.' : 'Check your connection and try again.',
       );
     }
   }
@@ -112,6 +109,9 @@ export default function GroupDetailScreen() {
         <View className="mt-2">
           <BalanceBadge amount={detail.myBalance} currency={detail.group.currency} appearance="pill" groupSettled={detail.isSettled} />
         </View>
+        <View className="mt-2">
+          <PendingBalanceNote paid={detail.myPendingPaid} received={detail.myPendingReceived} currency={detail.group.currency} />
+        </View>
       </View>
 
       <View className="mt-6 flex-row gap-3">
@@ -127,6 +127,10 @@ export default function GroupDetailScreen() {
         </Text>
         <MemberBalances balances={detail.balances} currency={detail.group.currency} meId={meId} />
       </Surface>
+
+      <View className="mt-4">
+        <TripPackCard groupId={id} />
+      </View>
 
       <Text variant="subheading" className="mb-1 mt-8" accessibilityRole="header">
         Expenses
@@ -195,11 +199,10 @@ export default function GroupDetailScreen() {
           onClose={() => setMenuOpen(false)}
           groupName={detail.group.name}
           onInvite={() => router.push(`/group/${id}/invite`)}
-          onRecurring={() => guard(FEATURES.recurringExpenses, () => router.push(`/group/${id}/recurring`))}
+          onRecurring={() => router.push(`/group/${id}/recurring`)}
+          onPayout={() => router.push({ pathname: '/settings/payout', params: { groupId: id } })}
           onExport={exportSummary}
           onLeave={() => setConfirmLeave(true)}
-          exportLocked={!can(FEATURES.exportHistory)}
-          recurringLocked={!can(FEATURES.recurringExpenses)}
         />
       ) : null}
 

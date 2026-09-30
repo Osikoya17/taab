@@ -58,7 +58,7 @@ export function SegmentedControl<T extends string>({ segments, value, onChange, 
             key={segment.value}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            accessibilityLabel={segment.locked ? `${segment.label}, taab+ feature` : segment.label}
+            accessibilityLabel={segment.locked ? `${segment.label}, locked` : segment.label}
             onPress={() => {
               if (!selected) haptics.selection();
               onChange(segment.value);

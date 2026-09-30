@@ -1,7 +1,9 @@
 import { resolve } from 'node:path';
 
-import { createApi, migrateInlineReceipts, processDeletions, processRecurring, pruneReceipts } from './api';
+import { configurePacks } from '../src/services/packs/runtime';
+import { createApi, migrateInlineReceipts, processDeletions, processPackMaintenance, processPaymentReminders, processRecurring, pruneReceipts } from './api';
 import { clerkServices } from './clerk';
+import { packsFromEnv } from './packs-config';
 import { createReceiptStore, openDatabase } from './storage';
 import { deliverPush } from './push';
 import { startWorker } from './worker';
@@ -17,8 +19,13 @@ const receipts = createReceiptStore(database);
 migrateInlineReceipts(receipts)
   .then((moved) => { if (moved) console.log(`Moved ${moved} receipt photo(s) out of the ledger.`); })
   .catch(() => console.error('Moving receipt photos out of the ledger failed; it will retry on the next start.'));
+const packs = packsFromEnv(process.env, receipts);
+configurePacks(packs.runtime);
+console.log(packs.summary);
+// Scans cut off by the last shutdown give their credits back before anyone asks.
+processPackMaintenance().catch(() => console.error('Pack maintenance failed; it will retry.'));
 const services = clerkServices(secretKey, authorizedParties);
-const server = createApi({ ...services, allowedOrigins, receipts, trustProxy: process.env.TRUST_PROXY === '1' });
+const server = createApi({ ...services, allowedOrigins, receipts, trustProxy: process.env.TRUST_PROXY === '1', paystackSecret: packs.paystackSecret });
 server.requestTimeout = 30_000;
 server.headersTimeout = 10_000;
 server.listen(Number(process.env.PORT ?? 3001), process.env.HOST ?? '127.0.0.1', () => {
@@ -27,9 +34,11 @@ server.listen(Number(process.env.PORT ?? 3001), process.env.HOST ?? '127.0.0.1',
 
 const worker = startWorker([
   { name: 'Account deletion', run: () => processDeletions(services.deleteIdentity) },
-  { name: 'Recurring expenses', run: () => processRecurring(services.getSubscription) },
+  { name: 'Recurring expenses', run: () => processRecurring() },
   { name: 'Push delivery', run: () => deliverPush() },
   { name: 'Receipt cleanup', run: () => pruneReceipts(receipts) },
+  { name: 'Payment reminders', run: () => processPaymentReminders() },
+  { name: 'Pack maintenance', run: () => processPackMaintenance() },
 ]);
 let closing = false;
 async function close() {

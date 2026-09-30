@@ -11,6 +11,10 @@ export type ServiceErrorCode =
   | 'limit_reached'
   | 'rate_limited'
   | 'unavailable'
+  /** Not enough scan credits in the chosen balance. */
+  | 'insufficient_credits'
+  /** The taab already owns this pack. */
+  | 'already_owned'
   | 'unknown';
 
 export class ServiceError extends Error {

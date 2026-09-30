@@ -1,4 +1,4 @@
-import type { SubscriptionState } from '@/features/billing/types';
+import type { CreditAccount, CreditAccountKey, CreditEntry, GroupPack, LegacySubscription, Purchase, ScanJob } from '@/features/billing/types';
 import type {
   ActivityEvent,
   AppNotification,
@@ -7,6 +7,7 @@ import type {
   NotificationPreferences,
   RecurringExpense,
   Reminder,
+  PayoutAccount,
   Settlement,
   UserProfile,
 } from '@/types/models';
@@ -26,12 +27,23 @@ export type MockDatabase = {
   recurring: RecurringExpense[];
   notifications: Record<string, AppNotification[]>;
   notificationPreferences: Record<string, NotificationPreferences>;
-  subscriptions: Record<string, SubscriptionState>;
+  /** Retired taab+ records, kept for history. Nothing reads them for access. */
+  subscriptions: Record<string, LegacySubscription>;
   /** Each account's devices, oldest first. */
   pushTokens: Record<string, string[]>;
   inviteLinks: Record<string, { groupId: string; expiresAt: string }>;
   pendingDeletions: Record<string, { userId: string; email: string; name: string; createdAt: string }>;
   pushOutbox: Record<string, PushJob>;
+  /** Pack purchases by id. Never deleted, so payment history stays auditable. */
+  purchases: Record<string, Purchase>;
+  creditAccounts: Partial<Record<CreditAccountKey, CreditAccount>>;
+  /** Every change to a credit balance, oldest first. */
+  creditLedger: CreditEntry[];
+  /** Taabs that own a trip & event pack, by group id. */
+  groupPacks: Record<string, GroupPack>;
+  scanJobs: Record<string, ScanJob>;
+  /** Bank accounts to be paid back into: one default, plus any taab that uses a different one. */
+  payoutAccounts: Record<string, { default?: PayoutAccount; groups: Record<string, PayoutAccount> }>;
 };
 
 export type PushJob = {
@@ -73,6 +85,12 @@ function emptyDatabase(): MockDatabase {
     inviteLinks: {},
     pendingDeletions: {},
     pushOutbox: {},
+    purchases: {},
+    creditAccounts: {},
+    creditLedger: [],
+    groupPacks: {},
+    scanJobs: {},
+    payoutAccounts: {},
   };
 }
 

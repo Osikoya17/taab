@@ -34,7 +34,7 @@ function retryLater(job: PushJob): PushJob | null {
 async function send(id: string, job: PushJob, transport: Transport) {
   const target = await read((db) => ({ tokens: db.pushTokens[job.userId] ?? [], notification: db.notifications[job.userId]?.find((n) => n.id === job.notificationId), preferences: db.notificationPreferences[job.userId] }));
   const notification = target.notification;
-  if (!target.tokens.length || !notification || target.preferences?.[notification.category] === false) {
+  if (!target.tokens.length || !notification || (!notification.test && target.preferences?.[notification.category] === false)) {
     await write((db) => { delete db.pushOutbox[id]; });
     return;
   }
@@ -51,6 +51,8 @@ async function send(id: string, job: PushJob, transport: Transport) {
   tickets.forEach((ticket, i) => {
     if (ticket.status === 'ok' && ticket.id) sent.push({ id: ticket.id, token: target.tokens[i] });
     else if (ticket.details?.error === 'DeviceNotRegistered') unregistered.push(target.tokens[i]);
+    // The error code only: never the token or the message.
+    else console.warn(`Push rejected by Expo: ${ticket.details?.error ?? 'unknown error'}`);
   });
   if (!sent.length && !unregistered.length) throw new Error('Push delivery failed');
   await write((db) => {
@@ -67,6 +69,11 @@ async function checkReceipts(id: string, job: PushJob, pending: SentTicket[], tr
   const receipts = (response.data ?? {}) as Record<string, Ticket | undefined>;
   const waiting = pending.filter((t) => !receipts[t.id]);
   const unregistered = pending.filter((t) => receipts[t.id]?.details?.error === 'DeviceNotRegistered').map((t) => t.token);
+  for (const t of pending) {
+    const error = receipts[t.id]?.status === 'error' ? receipts[t.id]?.details?.error : undefined;
+    // e.g. InvalidCredentials means the Firebase key on Expo is missing or wrong.
+    if (error && error !== 'DeviceNotRegistered') console.warn(`Push delivery failed at Firebase/Apple: ${error}`);
+  }
   await write((db) => {
     for (const token of unregistered) forgetToken(db, job.userId, token);
     if (!db.pushOutbox[id]) return;

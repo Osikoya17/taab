@@ -16,6 +16,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
 import { SplashOverlay } from '@/components/brand/SplashOverlay';
+import { NotificationPrompt } from '@/components/notifications/NotificationPrompt';
+import { AppLock } from '@/components/security/AppLock';
 import { ToastHost } from '@/components/ui/Toast';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Screen } from '@/components/ui/Screen';
@@ -104,6 +106,7 @@ function RootNavigator({ onReady }: { onReady: (ready: boolean) => void }) {
   }
 
   return (
+    <>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }}>
           <Stack.Protected guard={(!isSignedIn && !hasSeenOnboarding) || (isSignedIn && !setupComplete)}>
             <Stack.Screen name="(onboarding)" options={{ animation: 'fade' }} />
@@ -126,13 +129,19 @@ function RootNavigator({ onReady }: { onReady: (ready: boolean) => void }) {
             <Stack.Screen name="settle/record" options={{ presentation: 'modal' }} />
             <Stack.Screen name="reminder/new" options={{ presentation: 'modal' }} />
             <Stack.Screen name="notifications/index" />
-            <Stack.Screen name="subscription/index" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="subscription/index" />
+            <Stack.Screen name="extras/index" />
+            <Stack.Screen name="scan/index" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="scan/[id]" />
+            <Stack.Screen name="scan/bulk" />
             <Stack.Screen name="settings" />
           </Stack.Protected>
 
           <Stack.Screen name="sso-callback" />
           <Stack.Screen name="join/[token]" />
         </Stack>
+        {inApp ? <NotificationPrompt /> : null}
+    </>
   );
 }
 
@@ -175,6 +184,7 @@ function AppShell({ fontsLoaded }: { fontsLoaded: boolean }) {
       ) : null}
       <ToastHost />
       <SplashOverlay ready={navReady} />
+      {isLoaded ? <AppLock /> : null}
     </>
   );
 }

@@ -18,7 +18,6 @@ const METHODS: { value: SplitMethod; label: string }[] = [
   { value: 'shares', label: 'Shares' },
 ];
 
-const PREMIUM: SplitMethod[] = ['percentage', 'shares'];
 
 export type SplitBreakdownProps = {
   method: SplitMethod;
@@ -29,7 +28,6 @@ export type SplitBreakdownProps = {
   preview: SplitPreview;
   currency: CurrencyCode;
   meId: string;
-  advancedUnlocked: boolean;
 };
 
 function ValueInput({ method, value, onChange, label, currency }: { method: SplitMethod; value: string; onChange: (t: string) => void; label: string; currency: CurrencyCode }) {
@@ -63,7 +61,7 @@ function ValueInput({ method, value, onChange, label, currency }: { method: Spli
 }
 
 /** Split method + per-person shares, with a live "adds up" check. */
-export function SplitBreakdown({ method, onMethodChange, participants, values, onValueChange, preview, currency, meId, advancedUnlocked }: SplitBreakdownProps) {
+export function SplitBreakdown({ method, onMethodChange, participants, values, onValueChange, preview, currency, meId }: SplitBreakdownProps) {
   const colors = useColors();
   return (
     <View>
@@ -74,7 +72,7 @@ export function SplitBreakdown({ method, onMethodChange, participants, values, o
         accessibilityLabel="Split method"
         value={method}
         onChange={onMethodChange}
-        segments={METHODS.map((m) => ({ ...m, locked: !advancedUnlocked && PREMIUM.includes(m.value) }))}
+        segments={METHODS}
       />
 
       <View className="mt-3 rounded-card border border-line bg-surface px-4">

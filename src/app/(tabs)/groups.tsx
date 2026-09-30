@@ -13,9 +13,6 @@ import { FormInput } from '@/components/ui/FormInput';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { Screen } from '@/components/ui/Screen';
 import { CardSkeleton } from '@/components/ui/Skeleton';
-import { Text } from '@/components/ui/Text';
-import { useCanCreateGroup, useEntitlements } from '@/features/billing/use-entitlements';
-import { FEATURES } from '@/features/billing/products';
 import { useGroups } from '@/features/groups/queries';
 import { useBottomInset } from '@/hooks/use-bottom-inset';
 import type { GroupSummary } from '@/services/groups.service';
@@ -41,8 +38,6 @@ function matches(summary: GroupSummary, filter: Filter, query: string) {
 export default function GroupsScreen() {
   const router = useRouter();
   const groups = useGroups();
-  const canCreate = useCanCreateGroup();
-  const { limits } = useEntitlements();
   const bottomInset = useBottomInset(true);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
@@ -53,8 +48,7 @@ export default function GroupsScreen() {
   const visible = all.filter((g) => matches(g, filter, query));
 
   function newGroup() {
-    if (canCreate) router.push('/group/new');
-    else router.push({ pathname: '/subscription', params: { feature: FEATURES.unlimitedGroups } });
+    router.push('/group/new');
   }
 
   const listHeader =
@@ -100,13 +94,6 @@ export default function GroupsScreen() {
             ) : (
               <EmptyState compact illustration="stack" title="Nothing here" description={query ? `No taabs match “${query}”.` : 'No taabs match this filter.'} />
             )
-          }
-          ListFooterComponent={
-            !canCreate ? (
-              <Text variant="caption" tone="muted" className="mt-5 text-center">
-                You’re using {limits.activeGroups} of {limits.activeGroups} free taabs. taab+ removes the limit.
-              </Text>
-            ) : null
           }
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: bottomInset }}
           keyboardShouldPersistTaps="handled"

@@ -36,6 +36,10 @@ yarn-error.*
 .env.server
 .data/
 
+# Firebase service account keys are private. (google-services.json is public and is committed.)
+*firebase-adminsdk*.json
+*service-account*.json
+
 # server bundle (npm run server:build)
 /build/
 

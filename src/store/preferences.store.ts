@@ -23,6 +23,10 @@ type PreferencesState = {
   appearance: Appearance;
   /** The first-run walkthrough on Home has been finished or skipped. */
   hasSeenTour: boolean;
+  /** Ask for a fingerprint (or Face ID) when opening taab. Device-level, never synced. */
+  biometricLock: boolean;
+  /** When the “add your bank account” card on Home was last put off. */
+  payoutPromptDismissedAt: string | null;
   setPendingInvite: (token: string | null) => void;
   completeOnboarding: () => void;
   markNotificationPrompted: () => void;
@@ -30,6 +34,8 @@ type PreferencesState = {
   setAppearance: (appearance: Appearance) => void;
   completeTour: () => void;
   replayTour: () => void;
+  setBiometricLock: (enabled: boolean) => void;
+  dismissPayoutPrompt: () => void;
 };
 
 export type Appearance = 'system' | 'light' | 'dark';
@@ -44,6 +50,8 @@ export const usePreferences = create<PreferencesState>()(
       displayCurrency: null,
       appearance: 'system',
       hasSeenTour: false,
+      biometricLock: false,
+      payoutPromptDismissedAt: null,
       setPendingInvite: (pendingInvite) => set({ pendingInvite }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
       markNotificationPrompted: () => set({ notificationPromptedAt: new Date().toISOString() }),
@@ -51,11 +59,13 @@ export const usePreferences = create<PreferencesState>()(
       setAppearance: (appearance) => set({ appearance }),
       completeTour: () => set({ hasSeenTour: true }),
       replayTour: () => set({ hasSeenTour: false }),
+      setBiometricLock: (biometricLock) => set({ biometricLock }),
+      dismissPayoutPrompt: () => set({ payoutPromptDismissedAt: new Date().toISOString() }),
     }),
     {
       name: 'taab.preferences.v1',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency, appearance, hasSeenTour }) => ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency, appearance, hasSeenTour }),
+      partialize: ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency, appearance, hasSeenTour, biometricLock, payoutPromptDismissedAt }) => ({ hasSeenOnboarding, notificationPromptedAt, pendingInvite, displayCurrency, appearance, hasSeenTour, biometricLock, payoutPromptDismissedAt }),
       onRehydrateStorage: () => () => usePreferences.setState({ hydrated: true }),
     },
   ),

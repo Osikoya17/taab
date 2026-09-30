@@ -8,7 +8,6 @@ import { Divider } from '@/components/ui/Divider';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
-import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
 import { LoadingSkeleton } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
@@ -16,7 +15,6 @@ import { isMoneyEvent } from '@/features/activity/describe';
 import { useActivityFeed } from '@/features/activity/queries';
 import { toTimelineSections } from '@/features/activity/timeline';
 import { useAuthSession } from '@/features/auth/auth-context';
-import { FEATURES, FREE_LIMITS } from '@/features/billing/products';
 import { useBottomInset } from '@/hooks/use-bottom-inset';
 import type { ActivityEvent } from '@/types/models';
 
@@ -31,7 +29,6 @@ export default function ExpensesScreen() {
   // Joins, new taabs and reminders are context, not money: keep them out of Expenses.
   const events = (feed.data?.pages.flatMap((p) => p.items) ?? []).filter(isMoneyEvent);
   const sections = toTimelineSections(events);
-  const historyLimited = feed.data?.pages[feed.data.pages.length - 1]?.historyLimited ?? false;
 
   return (
     <Screen
@@ -65,19 +62,7 @@ export default function ExpensesScreen() {
           ItemSeparatorComponent={() => <Divider inset={52} />}
           ListEmptyComponent={<EmptyState illustration="pulse" title="No expenses yet." description="Bills and payments from all your taabs will show up here." />}
           ListFooterComponent={
-            feed.isFetchingNextPage ? (
-              <ActivityIndicator className="py-6" />
-            ) : historyLimited ? (
-              <PressableScale
-                onPress={() => router.push({ pathname: '/subscription', params: { feature: FEATURES.extendedHistory } })}
-                accessibilityLabel="See full history with taab+"
-                className="mt-6 rounded-card border border-line bg-surface px-4 py-4">
-                <Text variant="bodyStrong">Looking for something older?</Text>
-                <Text variant="caption" tone="muted" className="mt-0.5">
-                  Free shows the last {FREE_LIMITS.historyMonths} months. taab+ keeps your full history in view.
-                </Text>
-              </PressableScale>
-            ) : null
+            feed.isFetchingNextPage ? <ActivityIndicator className="py-6" /> : null
           }
           onEndReached={() => {
             if (feed.hasNextPage && !feed.isFetchingNextPage) feed.fetchNextPage();

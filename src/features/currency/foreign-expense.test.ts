@@ -22,8 +22,8 @@ const group: Group = {
   createdAt: '',
   updatedAt: '',
 };
-// A taab+ subscriber, so percentage and share splits are allowed.
-const db = { subscriptions: { me: { plan: 'plus_monthly', status: 'active', currentPeriodEnd: '2099-01-01T00:00:00.000Z', updatedAt: '' } } } as unknown as MockDatabase;
+// Every split method is free, so an empty account is enough.
+const db = { subscriptions: {}, scanJobs: {} } as unknown as MockDatabase;
 
 /** Builds an expense typed in dollars, exactly as the form does. */
 function typedInDollars(patch: Partial<ExpenseFormValues>): ExpenseInput {

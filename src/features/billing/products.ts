@@ -1,69 +1,74 @@
 import type { CurrencyCode, MinorUnits } from '@/types/models';
 
-/** Product identifiers. Keep in sync with the plans configured in Clerk Billing. */
-export const FREE = 'free';
-export const PLUS_MONTHLY = 'plus_monthly';
-export const PLUS_YEARLY = 'plus_yearly';
-
-export type PlanId = typeof FREE | typeof PLUS_MONTHLY | typeof PLUS_YEARLY;
-export type PaidPlanId = typeof PLUS_MONTHLY | typeof PLUS_YEARLY;
-
 /**
- * Clerk models one plan with monthly and annual prices, so both paid product
- * ids map to the same Clerk plan slug used in `has({ plan })` checks.
+ * One-off packs. Everyday expense sharing is free; packs add optional tools
+ * that save time. Nothing renews, and credits never expire.
+ *
+ * Prices are provisional and live only here. Scan allowances are not decided:
+ * the server reads them from RECEIPT_PACK_SCANS and TRIP_PACK_SCANS, and a pack
+ * can't be bought until its allowance is set (see README → Packs).
  */
-export const CLERK_PLUS_PLAN_SLUG = 'plus';
+export type ProductId = 'receipt_scan_pack' | 'trip_pack';
 
-/** Feature keys. Mirror these as Clerk Billing features for `has({ feature })`. */
-export const FEATURES = {
-  unlimitedGroups: 'unlimited_groups',
-  advancedSplits: 'advanced_splits',
-  recurringExpenses: 'recurring_expenses',
-  exportHistory: 'export_history',
-  extendedHistory: 'extended_history',
-  receiptScanning: 'receipt_scanning',
-  customCovers: 'custom_group_covers',
-  advancedInsights: 'advanced_insights',
-  premiumThemes: 'premium_themes',
-} as const;
-
-export type FeatureKey = (typeof FEATURES)[keyof typeof FEATURES];
-
-/** Generous free tier — the core product must stay fully usable. */
-export const FREE_LIMITS = {
-  activeGroups: 5,
-  /** Activity older than this is hidden on the free plan (never deleted). */
-  historyMonths: 12,
-} as const;
-
-export type PlanPrice = {
-  id: PaidPlanId;
-  label: string;
-  interval: 'month' | 'year';
-  currency: CurrencyCode;
-  amount: MinorUnits;
-  trialDays?: number;
+export type Product = {
+  id: ProductId;
+  /** Personal credits belong to the buyer; a group pack belongs to the taab. */
+  kind: 'personal' | 'group';
+  name: string;
+  /** Per what the price is charged. */
+  unit: string;
+  price: { amount: MinorUnits; currency: CurrencyCode };
+  bulkScanning: boolean;
+  report: boolean;
 };
 
-export const PLUS_PRICES: Record<PaidPlanId, PlanPrice> = {
-  [PLUS_MONTHLY]: { id: PLUS_MONTHLY, label: 'Monthly', interval: 'month', currency: 'NGN', amount: 150_000 },
-  [PLUS_YEARLY]: { id: PLUS_YEARLY, label: 'Yearly', interval: 'year', currency: 'NGN', amount: 1_500_000, trialDays: 7 },
+export const PRODUCTS: Record<ProductId, Product> = {
+  receipt_scan_pack: {
+    id: 'receipt_scan_pack',
+    kind: 'personal',
+    name: 'Receipt-scanning pack',
+    unit: 'per pack',
+    price: { amount: 100_000, currency: 'NGN' },
+    bulkScanning: false,
+    report: false,
+  },
+  trip_pack: {
+    id: 'trip_pack',
+    kind: 'group',
+    name: 'Trip & event pack',
+    unit: 'per taab',
+    price: { amount: 200_000, currency: 'NGN' },
+    bulkScanning: true,
+    report: true,
+  },
 };
 
-/** Percentage saved by paying yearly versus twelve monthly payments (0 when not cheaper). */
-export function yearlySavingsPercent(): number {
-  const monthlyForYear = PLUS_PRICES[PLUS_MONTHLY].amount * 12;
-  const yearly = PLUS_PRICES[PLUS_YEARLY].amount;
-  if (yearly >= monthlyForYear) return 0;
-  return Math.round(((monthlyForYear - yearly) / monthlyForYear) * 100);
+export const PRODUCT_IDS = Object.keys(PRODUCTS) as ProductId[];
+
+/** Scans each pack adds. `null` means not configured yet: the pack can't be bought. */
+export type ScanAllowances = Record<ProductId, number | null>;
+
+export const NO_ALLOWANCES: ScanAllowances = { receipt_scan_pack: null, trip_pack: null };
+
+/** Used only by the on-device demo and development servers, and labelled as demo in the app. */
+export const DEMO_ALLOWANCES: ScanAllowances = { receipt_scan_pack: 10, trip_pack: 40 };
+
+/** A configured allowance must be a whole number of scans between 1 and 1,000. */
+export function parseAllowance(value: string | undefined): number | null {
+  if (!value || !/^\d+$/.test(value.trim())) return null;
+  const n = Number(value.trim());
+  return Number.isSafeInteger(n) && n >= 1 && n <= 1000 ? n : null;
 }
 
-export const PLUS_BENEFITS: { feature: FeatureKey; title: string; detail: string; available: boolean }[] = [
-  { feature: FEATURES.unlimitedGroups, title: 'Unlimited taabs', detail: `Free includes ${FREE_LIMITS.activeGroups} active taabs.`, available: true },
-  { feature: FEATURES.advancedSplits, title: 'Percentages and shares', detail: 'Split by % or by shares, not just equally.', available: true },
-  { feature: FEATURES.recurringExpenses, title: 'Recurring expenses', detail: 'Rent, Netflix and bills that add themselves.', available: true },
-  { feature: FEATURES.exportHistory, title: 'Export history', detail: 'Share a clean summary of any taab.', available: true },
-  { feature: FEATURES.extendedHistory, title: 'Full history', detail: `Free keeps the last ${FREE_LIMITS.historyMonths} months in view.`, available: true },
-  { feature: FEATURES.receiptScanning, title: 'Receipt scanning', detail: 'Snap a receipt and taab fills it in.', available: false },
-  { feature: FEATURES.customCovers, title: 'Custom group covers', detail: 'Give each taab its own look.', available: false },
-];
+/** Credits one scan uses. */
+export const SCAN_COST = 1;
+
+/**
+ * Operational limits that stay on the free app. They stop abuse and keep the
+ * single-process server healthy; they are not a paywall.
+ */
+export const OPERATIONAL_LIMITS = {
+  activeGroups: 100,
+  /** Receipts in one bulk upload. */
+  bulkScanBatch: 20,
+} as const;

@@ -18,6 +18,8 @@ export const expenseInputSchema = z.object({
   receiptUrl: z.string().max(1_400_100).optional(),
   /** What was typed when entered in another currency. Informational: `amount` is authoritative. */
   original: z.object({ amount: moneySchema.positive(), currency: currencySchema, rate: z.number().positive().finite().max(1_000_000) }).optional(),
+  /** The receipt scan a person checked before saving. */
+  scanId: idSchema.optional(),
 });
 export const recurringInputSchema = expenseInputSchema.pick({ groupId: true, title: true, amount: true, paidBy: true, splitBetween: true, splitMethod: true }).extend({
   frequency: z.enum(['weekly', 'monthly', 'custom']),
@@ -42,6 +44,13 @@ export const profilePatchSchema = z.object({
   defaultCurrency: currencySchema.optional(), useCase: useCaseSchema.optional(),
 });
 export const setupSchema = z.object({ name: z.string().trim().min(1).max(80), useCase: useCaseSchema, currency: currencySchema, includeSampleTaabs: z.boolean() });
+/** A bank account for being paid back. Numbers are digits only (a Nigerian NUBAN is 10). */
+export const payoutAccountSchema = z.object({
+  bankName: z.string().trim().min(2).max(60),
+  accountNumber: z.string().regex(/^\d{6,20}$/),
+  accountName: z.string().trim().min(2).max(80),
+}).strict();
+
 export const settlementSchema = z.object({
   groupId: idSchema, fromUserId: idSchema, toUserId: idSchema, amount: moneySchema.positive(),
   method: z.enum(['bank_transfer', 'cash', 'other']), note: z.string().trim().max(500).optional(),

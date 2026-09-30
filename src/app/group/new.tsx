@@ -13,7 +13,7 @@ import { FormInput } from '@/components/ui/FormInput';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from '@/constants/currencies';
-import { FEATURES } from '@/features/billing/products';
+import { OPERATIONAL_LIMITS } from '@/features/billing/products';
 import { GROUP_TYPES } from '@/features/groups/group-types';
 import { useCreateGroup } from '@/features/groups/queries';
 import { useProfile } from '@/features/profile/queries';
@@ -69,7 +69,7 @@ export default function CreateGroupScreen() {
       router.replace(`/group/${group.id}`);
     } catch (error) {
       if (isServiceError(error) && error.code === 'limit_reached') {
-        router.push({ pathname: '/subscription', params: { feature: FEATURES.unlimitedGroups } });
+        toast.error(`You’re in ${OPERATIONAL_LIMITS.activeGroups} taabs`, 'That’s the most one account can have. Leave a finished taab to make room.');
       } else {
         toast.error('Couldn’t create that taab', 'Check your connection and try again.');
       }

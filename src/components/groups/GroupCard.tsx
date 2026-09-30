@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 
+import { PendingBalanceNote } from '@/components/settlements/PendingBalanceNote';
 import { AvatarStack } from '@/components/ui/AvatarStack';
 import { BalanceBadge } from '@/components/ui/BalanceBadge';
 import { Surface } from '@/components/ui/Surface';
@@ -31,6 +32,7 @@ export function GroupCard({ summary, onPress }: { summary: GroupSummary; onPress
           {isSettled ? 'Settled' : 'Unsettled'}
         </Text>
       </View>
+      <PendingBalanceNote paid={summary.myPendingPaid} received={summary.myPendingReceived} currency={group.currency} />
     </Surface>
   );
 }

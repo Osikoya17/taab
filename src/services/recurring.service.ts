@@ -4,7 +4,7 @@ import { nextOccurrence } from '@/features/recurring/schedule';
 
 import { ServiceError } from './api/errors';
 import { createId, read, write, type MockDatabase } from './mock/db';
-import { logActivity, memberName, requireGroup, touchGroup, userHasPlus } from './mock/ledger';
+import { logActivity, memberName, requireGroup, touchGroup } from './mock/ledger';
 import { requireSession } from './session';
 import { validateExpense } from './expenses.service';
 import { recurringInputSchema } from './validation';
@@ -72,7 +72,6 @@ export const localRecurringService = {
       const group = requireGroup(db, input.groupId, me.userId);
       if (!recurringInputSchema.safeParse(input).success) throw new ServiceError('validation');
       validateExpense(db, group, me.userId, { ...input, date: input.nextDate });
-      if (!userHasPlus(db, me.userId)) throw new ServiceError('forbidden');
       const rule: RecurringExpense = {
         ...input,
         id: createId('rc'),
@@ -108,7 +107,7 @@ export const localRecurringService = {
       const created: Expense[] = [];
       const pending: RecurringExpense[] = [];
       for (const rule of dueRules(db, me.userId)) {
-        if (rule.createdBy !== me.userId || !userHasPlus(db, rule.createdBy)) continue;
+        if (rule.createdBy !== me.userId) continue;
         if (rule.autoCreate) {
           // Limit catch-up work per request; subsequent runs continue where this one ends.
           let count = 0;
@@ -125,7 +124,7 @@ export const localRecurringService = {
       const rule = db.recurring.find((r) => r.id === id);
       if (!rule) throw new ServiceError('not_found');
       requireGroup(db, rule.groupId, me.userId);
-      if (rule.createdBy !== me.userId || !userHasPlus(db, me.userId)) throw new ServiceError('forbidden');
+      if (rule.createdBy !== me.userId) throw new ServiceError('forbidden');
       if (Date.parse(rule.nextDate) > Date.now()) throw new ServiceError('validation', 'not_due');
       return materialize(db, rule, me.userId);
     });
@@ -137,7 +136,7 @@ export const localRecurringService = {
       const rule = db.recurring.find((r) => r.id === id);
       if (!rule) throw new ServiceError('not_found');
       requireGroup(db, rule.groupId, me.userId);
-      if (rule.createdBy !== me.userId || !userHasPlus(db, me.userId)) throw new ServiceError('forbidden');
+      if (rule.createdBy !== me.userId) throw new ServiceError('forbidden');
       if (Date.parse(rule.nextDate) > Date.now()) throw new ServiceError('validation', 'not_due');
       rule.anchorDay ??= new Date(rule.nextDate).getUTCDate();
       rule.nextDate = nextOccurrence(rule.nextDate, rule.frequency, rule.intervalDays, rule.anchorDay);

@@ -18,7 +18,7 @@ Copy `.env.example` to `.env.local` if that file does not already exist. Leave `
 npm start
 ```
 
-Use `npm run web` to open the web version. Demo data stays on the device/browser. Sample groups are optional during setup, and the taab+ screen can simulate subscription states without charging anyone. PostHog analytics is optional; leave its token blank to disable it.
+Use `npm run web` to open the web version. Demo data stays on the device/browser. Sample groups are optional during setup, and Extras simulates pack purchases and receipt scans without charging anyone. PostHog analytics is optional; leave its token blank to disable it.
 
 ## Run with shared data
 
@@ -59,11 +59,39 @@ The web app is hosted on EAS Hosting at `taab.expo.app`. `EXPO_PUBLIC_API_URL` i
 - The notification inbox works without device push. Remote push needs an EAS project ID, push credentials, and a compatible development or production build. See the [SDK 57 notification setup](https://docs.expo.dev/versions/v57.0.0/sdk/notifications/). Registration failures remain retryable in notification settings.
 - Push goes to up to five devices per account; registering a sixth drops the oldest. A device signed into a new account stops receiving the previous account's notifications. The outbox checks delivery receipts, retries temporary failures, and removes only the devices Expo rejects.
 
-## Subscriptions
+## Packs (one-off purchases)
 
-Real purchases are deferred. Demo mode simulates taab+ checkout, cancellation, restoration, and expiration. Shared mode does not offer new purchases or simulated paid access.
+Everyday sharing is free: every split method, recurring bills, full history, the plain-text summary, balances, confirmations, edit history and reminders. There is no subscription. The only limits are operational (100 active taabs per account, 100 members per taab, 20 receipts per bulk upload).
 
-Leave `CLERK_BILLING_ENABLED=false` for now. The server has an adapter to read existing Clerk subscriptions if enabled later; paid checkout and billing management still need a provider integration and account configuration before launch.
+Two optional packs, priced in `src/features/billing/products.ts` in kobo (provisional):
+
+| Pack | Price | Unit | Adds |
+|---|---|---|---|
+| Receipt-scanning pack | ₦1,000 | per pack | `RECEIPT_PACK_SCANS` scan credits for the buyer. They never expire or renew. |
+| Trip & event pack | ₦2,000 | per taab | `TRIP_PACK_SCANS` shared scans for current members, bulk scanning and a downloadable report. One per taab. |
+
+Manual entry and attaching a receipt photo stay free.
+
+**Settings (server).** A pack can't be bought until its allowance is set, and nothing is sold until checkout is configured:
+
+| Variable | What it does |
+|---|---|
+| `RECEIPT_PACK_SCANS`, `TRIP_PACK_SCANS` | Scans per pack, a whole number from 1 to 1000. Unset means "Coming soon". Not decided yet. |
+| `PAYSTACK_SECRET_KEY`, `PAYSTACK_CALLBACK_URL` | Real web checkout with Paystack. The callback is the web app's Extras page, e.g. `https://taab.expo.app/extras`. Both are needed. |
+| `ANTHROPIC_API_KEY` | Real receipt scanning with Claude (`claude-opus-5-5`, server-side refusal fallbacks enabled). Without it, scanning is off. |
+| `DEMO_PACKS=1` | Simulated checkout, sample scans and demo allowances (10 and 40) for development. Refused when `NODE_ENV=production`, so it can't run on Railway. |
+
+In Paystack's dashboard, set the webhook URL to `<API URL>/webhooks/paystack`. Webhooks are checked by HMAC-SHA512 signature, and even then only name a payment: the server always asks Paystack's verify API what happened.
+
+**How purchases are granted.** Starting checkout creates a `pending` purchase and grants nothing. Credits arrive only when the server verifies the payment with the provider, from the app returning to Extras or from a webhook. The amount and currency must match, and repeats are no-ops. A refund removes whatever is unused and, for a trip pack, the taab's pack tools; the taab's records stay. Unfinished checkouts expire after a day (a late confirmed payment still counts). Two members paying for the same taab at once is blocked; if it still happens, the second purchase is flagged `duplicate_group_pack` for a refund decision.
+
+**Platforms.** Apple and Google require their own in-app purchase systems for digital extras bought in their store apps, and outside the US forbid pointing people elsewhere to buy. So real checkout runs on the web only. The phone apps show packs, use owned credits, and say buying isn't available in the app yet. Store billing (StoreKit and Play Billing) needs products set up in each store and server-side receipt validation. It plugs into the same `PaymentProvider` verification in `src/services/packs/runtime.ts`.
+
+**Scanning.** A scan reserves one credit, calls the scanner, and spends the credit only when the draft is saved; failures return it. Each photo carries an idempotency key, so retries and duplicate taps never charge twice, and bulk retries skip finished receipts. Scans cut off by a restart are released after 10 minutes by the worker (also run at startup), and a late result is ignored. Drafts are labelled "Scanned", never "Verified", and flag unclear or mismatched totals. A scan never creates an expense or confirms a payment: the person reviews the photo beside the draft and saves through the normal form. Receipt contents are never logged. Unused scan photos are deleted after 30 days.
+
+**Legacy taab+ records.** `subscriptions` in the ledger are kept for history and no longer read. Billing was never switched on (`CLERK_BILLING_ENABLED=false`), so no one had paid access to migrate. If a paid record exists, decide case by case (for example, grant goodwill scan credits by hand).
+
+The on-device demo (no API URL) always uses demo checkout and sample scans, clearly labelled in the app.
 
 ## Checks
 

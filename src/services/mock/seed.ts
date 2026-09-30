@@ -131,7 +131,7 @@ export function seedDemoData(db: MockDatabase, me: Person) {
     return expense;
   }
 
-  function addSettlement(group: Group, from: Person, to: Person, amountNaira: number, at: string) {
+  function addSettlement(group: Group, from: Person, to: Person, amountNaira: number, at: string, status: Settlement['status'] = 'confirmed') {
     const settlement: Settlement = {
       id: `s_${group.id}_${settlements.length + 1}`,
       groupId: group.id,
@@ -140,19 +140,24 @@ export function seedDemoData(db: MockDatabase, me: Person) {
       amount: amountNaira * 100,
       currency,
       method: 'bank_transfer',
+      status,
+      respondedAt: status === 'pending' ? undefined : at,
       createdBy: from.userId,
       createdAt: at,
     };
     settlements.push(settlement);
+    // A waiting payment reads as the payer's claim; a confirmed one as the receiver's word.
+    const pending = status === 'pending';
     activity.push({
       id: `a_${settlement.id}`,
-      type: 'payment_recorded',
+      type: pending ? 'payment_recorded' : 'payment_confirmed',
       groupId: group.id,
       groupName: group.name,
-      actorId: from.userId,
-      actorName: from.name,
-      targetUserId: to.userId,
-      targetName: to.name,
+      actorId: pending ? from.userId : to.userId,
+      actorName: pending ? from.name : to.name,
+      targetUserId: pending ? to.userId : from.userId,
+      targetName: pending ? to.name : from.name,
+      settlementId: settlement.id,
       amount: settlement.amount,
       currency,
       createdAt: at,
@@ -169,6 +174,25 @@ export function seedDemoData(db: MockDatabase, me: Person) {
   addExpense(flat, 'Dinner at Nok', 48_000, me, ago({ days: 1, hours: 2 }), { category: 'food' });
   addSettlement(flat, macky, me, 6_000, ago({ hours: 2 }));
   addExpense(flat, 'Fuel', 18_000, gbayin, ago({ minutes: 10 }), { category: 'transport' });
+  // Waiting for you: balances don't move until you confirm it on Home.
+  addSettlement(flat, dami, me, 5_000, ago({ minutes: 4 }), 'pending');
+  const netflix = expenses.find((e) => e.groupId === flat.id && e.title === 'Netflix');
+  if (netflix) {
+    activity.push({
+      id: `a_${netflix.id}_edited`,
+      type: 'expense_edited',
+      groupId: flat.id,
+      groupName: flat.name,
+      actorId: macky.userId,
+      actorName: macky.name,
+      expenseId: netflix.id,
+      title: netflix.title,
+      amount: netflix.amount,
+      currency,
+      changes: [{ field: 'amount', from: 650_000, to: netflix.amount }],
+      createdAt: ago({ days: 5 }),
+    });
+  }
 
   // Detty December — you owe a little.
   const detty = addGroup('detty', 'Detty December', 'event', [me, gbayin, macky, femi, dami, zainab], ago({ days: 30 }));
@@ -235,6 +259,15 @@ export function seedDemoData(db: MockDatabase, me: Person) {
   };
 
   const notifications: AppNotification[] = [
+    {
+      id: `n_${suffix}_pending`,
+      category: 'payment_received',
+      title: 'Did you get this payment?',
+      body: `${dami.name} says they paid you ${formatMoney(500_000, currency)} · Flat 12. Confirm it so balances update.`,
+      groupId: flat.id,
+      read: false,
+      createdAt: ago({ minutes: 4 }),
+    },
     {
       id: `n_${suffix}_1`,
       category: 'new_expense',

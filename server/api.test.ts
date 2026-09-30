@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
-import { createApi, processDeletions, processRecurring } from './api';
+import { createApi, processDeletions, processPaymentReminders, processRecurring } from './api';
 import { createReceiptStore, openDatabase } from './storage';
 import { ServiceError } from '../src/services/api/errors';
 import { read, write } from '../src/services/mock/db';
@@ -55,8 +55,12 @@ test('shared-data API validates, isolates accounts, and persists the ledger', as
     await t.test('validate split totals, dates, duplicates, and settlement methods', async () => {
       const input = { groupId: group.id, title: 'Dinner', amount: 1000, paidBy: [{ userId: 'alice', amount: 1000 }], splitBetween: [{ userId: 'alice', amount: 500 }, { userId: group.members[1].userId, amount: 500 }], splitMethod: 'equal', date: new Date().toISOString() };
       assert.equal((await rpc('alice', 'expenses/createExpense', [{ ...input, date: 'invalid' }, null])).status, 422);
+      const huge = 100_000_000 * 100 + 2;
+      const hugeInput = { ...input, amount: huge, paidBy: [{ userId: 'alice', amount: huge }], splitBetween: [{ userId: 'alice', amount: huge / 2 }, { userId: group.members[1].userId, amount: huge / 2 }] };
+      assert.equal((await rpc('alice', 'expenses/createExpense', [hugeInput, null])).status, 422, 'more than ₦100m in one expense is refused');
+      assert.equal((await rpc('alice', 'settlements/recordSettlement', [{ groupId: group.id, fromUserId: 'alice', toUserId: group.members[1].userId, amount: huge, method: 'cash' }])).status, 422);
       assert.equal((await rpc('alice', 'expenses/createExpense', [{ ...input, splitBetween: [{ userId: 'alice', amount: 500 }, { userId: 'alice', amount: 500 }] }, null])).status, 422);
-      assert.equal((await rpc('alice', 'expenses/createExpense', [input, { frequency: 'monthly', autoCreate: true }])).status, 403);
+      assert.equal((await rpc('alice', 'expenses/createExpense', [input, { frequency: 'yearly', autoCreate: true }])).status, 422);
       assert.equal((await rpc('alice', 'expenses/listGroupExpenses', [group.id])).data.length, 0, 'failed recurring creation does not save a partial expense');
       assert.equal((await rpc('alice', 'expenses/createExpense', [input, null])).status, 200);
       assert.equal((await rpc('alice', 'settlements/recordSettlement', [{ groupId: group.id, fromUserId: group.members[1].userId, toUserId: 'alice', amount: 500, method: 'in_app' }])).status, 422);
@@ -129,12 +133,89 @@ test('shared-data API validates, isolates accounts, and persists the ledger', as
       assert.ok((await rpc('bob', 'notifications/list')).data.some((n: { category: string }) => n.category === 'reminder'));
       assert.equal((await rpc('bob', 'notifications/markAllRead')).status, 200);
     });
+    await t.test('payments count only once the person who received them confirms', async () => {
+      const balance = async (user: string) => (await rpc(user, 'groups/getGroup', [group.id])).data.myBalance as number;
+      const bobBefore = await balance('bob');
+      const record = (user: string, fromUserId: string, toUserId: string, amount: number) =>
+        rpc(user, 'settlements/recordSettlement', [{ groupId: group.id, fromUserId, toUserId, amount, method: 'bank_transfer' }]);
+
+      const claimed = await record('bob', 'bob', 'alice', 200);
+      assert.equal(claimed.data.status, 'pending');
+      assert.equal(await balance('bob'), bobBefore, 'a claim alone moves nothing');
+      const alicePending = (await rpc('alice', 'settlements/listPending')).data;
+      assert.deepEqual(alicePending.map((p: { settlement: { id: string }; needsYou: boolean }) => [p.settlement.id, p.needsYou]), [[claimed.data.id, true]]);
+      assert.equal((await rpc('bob', 'settlements/listPending')).data[0].needsYou, false);
+      assert.ok((await rpc('alice', 'notifications/list')).data.some((n: { title: string }) => n.title === 'Did you get this payment?'));
+      const suggestion = (await rpc('bob', 'settlements/getSuggestions', [group.id])).data.find((s: { toUserId: string }) => s.toUserId === 'alice');
+      assert.equal(suggestion?.pendingAmount, 200);
+
+      assert.equal((await rpc('bob', 'settlements/respondToSettlement', [claimed.data.id, 'confirm'])).status, 403, 'the payer cannot confirm their own claim');
+      assert.equal((await rpc('eve', 'settlements/respondToSettlement', [claimed.data.id, 'confirm'])).status, 403);
+      assert.equal((await rpc('alice', 'settlements/respondToSettlement', [claimed.data.id, 'maybe'])).status, 422);
+      assert.equal((await rpc('alice', 'settlements/respondToSettlement', [claimed.data.id, 'decline'])).data.status, 'declined');
+      assert.equal(await balance('bob'), bobBefore, 'a declined payment moves nothing');
+      assert.equal((await rpc('alice', 'settlements/respondToSettlement', [claimed.data.id, 'confirm'])).status, 422, 'an answer is final');
+      assert.ok((await rpc('bob', 'notifications/list')).data.some((n: { title: string }) => n.title === 'Payment not received'));
+
+      const retried = await record('bob', 'bob', 'alice', 200);
+      assert.equal((await rpc('alice', 'settlements/respondToSettlement', [retried.data.id, 'confirm'])).data.status, 'confirmed');
+      assert.equal(await balance('bob'), bobBefore + 200);
+
+      // The receiver's own record needs no second step.
+      assert.equal((await record('alice', 'bob', 'alice', 100)).data.status, 'confirmed');
+      assert.equal(await balance('bob'), bobBefore + 300);
+
+      // Put balances back for the tests that follow: Alice pays the same back through both routes.
+      const back = await record('alice', 'alice', 'bob', 200);
+      assert.equal((await rpc('bob', 'settlements/respondToSettlement', [back.data.id, 'confirm'])).status, 200);
+      assert.equal((await record('bob', 'alice', 'bob', 100)).data.status, 'confirmed');
+      assert.equal(await balance('bob'), bobBefore);
+      const events = (await rpc('alice', 'activity/listActivity', [{ groupId: group.id }])).data.items.map((e: { type: string }) => e.type);
+      assert.ok(events.includes('payment_confirmed') && events.includes('payment_declined'));
+    });
+    await t.test('waiting payments show beside balances and get one reminder after a day', async () => {
+      const claim = await rpc('bob', 'settlements/recordSettlement', [{ groupId: group.id, fromUserId: 'bob', toUserId: 'alice', amount: 250, method: 'cash' }]);
+      assert.equal((await rpc('bob', 'groups/getGroup', [group.id])).data.myPendingPaid, 250);
+      const aliceView = (await rpc('alice', 'groups/getGroup', [group.id])).data;
+      assert.equal(aliceView.myPendingReceived, 250);
+      assert.equal(aliceView.balances.find((b: { userId: string }) => b.userId === 'bob').pendingPaid, 250);
+      assert.equal((await rpc('alice', 'groups/listGroups')).data[0].myPendingReceived, 250);
+
+      const reminders = async () => (await rpc('alice', 'notifications/list')).data.filter((n: { title: string }) => n.title.startsWith('Still waiting')).length;
+      assert.equal(await processPaymentReminders(), 0, 'nothing is due in the first day');
+      await write((db) => { db.settlements.find((s) => s.id === claim.data.id)!.createdAt = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(); });
+      assert.equal(await processPaymentReminders(), 1);
+      assert.equal(await processPaymentReminders(), 0, 'each payment is reminded once');
+      assert.equal(await reminders(), 1);
+
+      assert.equal((await rpc('alice', 'settlements/respondToSettlement', [claim.data.id, 'decline'])).status, 200);
+      assert.equal((await rpc('bob', 'groups/getGroup', [group.id])).data.myPendingPaid, 0);
+    });
+    await t.test('edits record what changed, visible to the whole taab', async () => {
+      const expense = await read((db) => db.expenses.find((e) => e.groupId === group.id)!);
+      const input = { groupId: group.id, title: expense.title, amount: expense.amount, paidBy: expense.paidBy, splitBetween: expense.splitBetween, splitMethod: expense.splitMethod, date: expense.date };
+      const historyLength = async () => (await rpc('bob', 'expenses/getHistory', [expense.id])).data.length as number;
+      const before = await historyLength();
+      assert.equal((await rpc('alice', 'expenses/updateExpense', [expense.id, input])).status, 200);
+      assert.equal(await historyLength(), before, 'saving without changes adds nothing');
+
+      assert.equal((await rpc('alice', 'expenses/updateExpense', [expense.id, { ...input, title: 'Dinner at Nok', notes: 'Birthday' }])).status, 200);
+      const history = (await rpc('bob', 'expenses/getHistory', [expense.id])).data;
+      assert.equal(history.length, before + 1);
+      assert.deepEqual(history.at(-1).changes, [{ field: 'title', from: expense.title, to: 'Dinner at Nok' }, { field: 'notes', to: 'Birthday' }]);
+      assert.ok((await rpc('bob', 'notifications/list')).data.some((n: { title: string; body: string }) => n.title === 'Expense changed' && n.body.includes('Dinner at Nok')));
+      assert.equal((await rpc('eve', 'expenses/getHistory', [expense.id])).status, 403);
+      assert.equal((await rpc('alice', 'expenses/updateExpense', [expense.id, input])).status, 200);
+    });
     await t.test('leaving stops related recurring bills and protects settled history', async () => {
       await write((db) => {
         const expense = db.expenses[0];
         db.recurring.push({ ...expense, id: 'leaver_rule', frequency: 'monthly', autoCreate: true, nextDate: '2099-01-01T00:00:00.000Z' });
       });
-      assert.equal((await rpc('bob', 'settlements/recordSettlement', [{ groupId: group.id, fromUserId: 'bob', toUserId: 'alice', amount: 500, method: 'cash' }])).status, 200);
+      const payment = await rpc('bob', 'settlements/recordSettlement', [{ groupId: group.id, fromUserId: 'bob', toUserId: 'alice', amount: 500, method: 'cash' }]);
+      assert.equal(payment.status, 200);
+      assert.equal((await rpc('bob', 'groups/leaveGroup', [group.id])).status, 422, 'an unconfirmed payment keeps you in the taab');
+      assert.equal((await rpc('alice', 'settlements/respondToSettlement', [payment.data.id, 'confirm'])).status, 200);
       assert.equal((await rpc('bob', 'groups/leaveGroup', [group.id])).status, 200);
       assert.equal(await read((db) => db.recurring.some((r) => r.id === 'leaver_rule')), false);
       const original = await read((db) => db.expenses[0]);
@@ -163,7 +244,6 @@ test('shared-data API validates, isolates accounts, and persists the ledger', as
       assert.equal(ids.size, 60);
     });
     await t.test('recurring confirmations require ownership and a due date', async () => {
-      await write((db) => { db.subscriptions.alice = { plan: 'plus_monthly', status: 'active', currentPeriodEnd: '2099-01-01T00:00:00.000Z', updatedAt: new Date().toISOString() }; });
       const rule = { groupId: group.id, title: 'Rent', amount: 1000, paidBy: [{ userId: 'alice', amount: 1000 }], splitBetween: [{ userId: 'alice', amount: 500 }, { userId: 'bob', amount: 500 }], splitMethod: 'equal', frequency: 'monthly', autoCreate: false, nextDate: new Date().toISOString() };
       const result = await rpc('alice', 'recurring/create', [rule]);
       assert.equal(result.status, 200);
@@ -222,13 +302,9 @@ test('shared-data API validates, isolates accounts, and persists the ledger', as
         db.recurring.push({ ...template, id: 'alice_due', autoCreate: true, nextDate: new Date().toISOString() });
         db.recurring.push({ ...template, id: 'bob_due', createdBy: 'bob', autoCreate: true, nextDate: new Date().toISOString() });
       });
-      const called: string[] = [];
-      await assert.rejects(processRecurring(async (id) => {
-        called.push(id);
-        if (id === 'alice') throw new Error('temporary billing outage');
-        return { plan: 'plus_monthly', status: 'active', currentPeriodEnd: '2099-01-01T00:00:00.000Z', updatedAt: new Date().toISOString() };
-      }));
-      assert.deepEqual(called, ['alice', 'bob']);
+      // Alice's rule no longer adds up, so the server refuses her run; Bob's must still run.
+      await write((db) => { const rule = db.recurring.find((r) => r.id === 'alice_due')!; rule.splitBetween = rule.splitBetween.map((s) => ({ ...s, amount: s.amount + 1 })); });
+      await assert.rejects(processRecurring());
       assert.equal(await read((db) => db.expenses.filter((e) => e.recurringId === 'bob_due').length), 1);
       assert.equal(await read((db) => db.expenses.filter((e) => e.recurringId === 'alice_due').length), 0);
     });

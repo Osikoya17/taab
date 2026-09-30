@@ -102,6 +102,8 @@ export type Expense = {
   receiptUrl?: string;
   /** Set when it was entered in another currency; `amount` is the converted value. */
   original?: ForeignAmount;
+  /** The receipt scan this was filled from. Scanned, not verified: a person checked and saved it. */
+  scanId?: string;
   /** When the expense happened (user-editable). */
   date: ISODateString;
   recurringId?: string;
@@ -116,6 +118,24 @@ export type Expense = {
  */
 export type SettlementMethod = 'bank_transfer' | 'cash' | 'other' | 'in_app';
 
+/**
+ * Where someone wants to be paid back. taab only shows it to people in the
+ * same taab so they can transfer from their own bank; taab never moves money.
+ */
+export type PayoutAccount = {
+  bankName: string;
+  /** Digits only, e.g. a 10-digit NUBAN. */
+  accountNumber: string;
+  accountName: string;
+};
+
+/**
+ * A payment the payer records waits for the person who received the money to
+ * confirm it; one the receiver records is confirmed straight away. Only
+ * confirmed payments change balances.
+ */
+export type SettlementStatus = 'pending' | 'confirmed' | 'declined';
+
 export type Settlement = {
   id: string;
   groupId: string;
@@ -125,6 +145,12 @@ export type Settlement = {
   currency: CurrencyCode;
   method?: SettlementMethod;
   note?: string;
+  /** Absent on payments recorded before confirmation existed; those count as confirmed. */
+  status?: SettlementStatus;
+  /** When the receiver confirmed or declined it. */
+  respondedAt?: ISODateString;
+  /** When the receiver was reminded to answer. Each payment is reminded once. */
+  remindedAt?: ISODateString;
   createdBy: string;
   createdAt: ISODateString;
 };
@@ -134,9 +160,22 @@ export type ActivityType =
   | 'expense_edited'
   | 'expense_deleted'
   | 'payment_recorded'
+  | 'payment_confirmed'
+  | 'payment_declined'
   | 'member_joined'
   | 'group_created'
   | 'reminder_sent';
+
+/** One field an edit changed, with the values before and after. */
+export type ExpenseChange =
+  | { field: 'title'; from: string; to: string }
+  | { field: 'amount'; from: MinorUnits; to: MinorUnits }
+  | { field: 'date'; from: ISODateString; to: ISODateString }
+  | { field: 'category'; from?: ExpenseCategory; to?: ExpenseCategory }
+  | { field: 'notes'; from?: string; to?: string }
+  | { field: 'paidBy'; from: ExpensePayer[]; to: ExpensePayer[] }
+  | { field: 'split'; from: ExpenseSplit[]; to: ExpenseSplit[]; fromMethod: SplitMethod; toMethod: SplitMethod }
+  | { field: 'receipt'; change: 'added' | 'removed' | 'replaced' };
 
 export type ActivityEvent = {
   id: string;
@@ -149,9 +188,12 @@ export type ActivityEvent = {
   targetUserId?: string;
   targetName?: string;
   expenseId?: string;
+  settlementId?: string;
   title?: string;
   amount?: MinorUnits;
   currency?: CurrencyCode;
+  /** What an `expense_edited` event changed. Absent on edits made before history was kept. */
+  changes?: ExpenseChange[];
   createdAt: ISODateString;
 };
 
@@ -208,5 +250,7 @@ export type AppNotification = {
   groupId?: string;
   expenseId?: string;
   read: boolean;
+  /** A test you sent yourself from settings; delivered whatever your preferences. */
+  test?: boolean;
   createdAt: ISODateString;
 };

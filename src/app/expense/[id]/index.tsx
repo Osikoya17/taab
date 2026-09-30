@@ -4,6 +4,7 @@ import { Pencil, Share2, Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Share, View } from 'react-native';
 
+import { ExpenseHistory } from '@/components/expenses/ExpenseHistory';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Avatar } from '@/components/ui/Avatar';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -224,6 +225,8 @@ export default function ExpenseDetailScreen() {
         </>
       ) : null}
 
+      <ExpenseHistory expense={expense} group={group} meId={meId} />
+
       <View className="mt-8 gap-2">
         <Button label="Edit expense" icon={Pencil} variant="secondary" onPress={() => router.push(`/expense/${expense.id}/edit`)} />
         <Button label="Delete expense" icon={Trash2} variant="ghost" onPress={() => setConfirmDelete(true)} />
@@ -233,7 +236,7 @@ export default function ExpenseDetailScreen() {
         visible={confirmDelete}
         onClose={() => setConfirmDelete(false)}
         title={`Delete ${expense.title}?`}
-        description="Everyone’s balances will update. This can’t be undone.">
+        description="Everyone’s balances will update, and the taab’s Expenses feed will show that you deleted it. This can’t be undone.">
         <View className="gap-2">
           <Button label="Delete expense" variant="danger" onPress={confirmRemove} loading={remove.isPending} />
           <Button label="Keep it" variant="ghost" onPress={() => setConfirmDelete(false)} />

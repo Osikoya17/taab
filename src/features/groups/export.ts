@@ -3,7 +3,7 @@ import type { GroupDetail } from '@/services/groups.service';
 import { shortDate } from '@/utils/dates';
 import { formatMoney } from '@/utils/money';
 
-/** Plain-text summary for sharing a taab (taab+ export). */
+/** Plain-text summary for sharing a taab. Free: the polished report comes with the trip pack. */
 export function groupSummaryText(detail: GroupDetail, expenses: ExpenseListItem[]): string {
   const { group } = detail;
   const name = (id: string) => group.members.find((m) => m.userId === id)?.name ?? 'Someone';
