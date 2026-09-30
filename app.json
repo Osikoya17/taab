@@ -76,7 +76,8 @@
           "contactsPermission": "taab uses your contacts so you can invite friends to a taab."
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "./plugins/with-bank-app-queries.js"
     ],
     "experiments": {
       "typedRoutes": true,

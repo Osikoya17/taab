@@ -1,0 +1,21 @@
+[
+  { "id": "opay", "name": "OPay", "bank": "OPay", "android": ["team.opay.pay"] },
+  { "id": "moniepoint", "name": "Moniepoint", "bank": "Moniepoint", "android": ["com.moniepoint.personal"] },
+  { "id": "palmpay", "name": "PalmPay", "bank": "PalmPay", "android": ["com.transsnet.palmpay"] },
+  { "id": "kuda", "name": "Kuda", "bank": "Kuda", "android": ["com.kudabank.app"] },
+  { "id": "gtbank", "name": "GTWorld", "bank": "GTBank", "android": ["com.gtbank.gtworldv1"] },
+  { "id": "access", "name": "Access More", "bank": "Access Bank", "android": ["com.accessbank.nextgen", "com.accessbank.accessbankapp"] },
+  { "id": "zenith", "name": "Zenith Bank", "bank": "Zenith Bank", "android": ["com.zenithBank.eazymoney"] },
+  { "id": "firstbank", "name": "FirstMobile", "bank": "First Bank", "android": ["com.firstbank.firstmobile"] },
+  { "id": "uba", "name": "UBA Mobile", "bank": "UBA", "android": ["com.ubanquity.redd.uba", "com.uba.vericash"] },
+  { "id": "alat", "name": "ALAT", "bank": "Wema Bank", "android": ["com.wemabank.alat.prod"] },
+  { "id": "fidelity", "name": "Fidelity Online", "bank": "Fidelity Bank", "android": ["com.interswitchng.www"] },
+  { "id": "stanbic", "name": "Stanbic IBTC", "bank": "Stanbic IBTC", "android": ["com.StanbicMobile"] },
+  { "id": "sterling", "name": "Sterling OneBank", "bank": "Sterling Bank", "android": ["com.sterlingng.sterlingmobile"] },
+  { "id": "fcmb", "name": "FCMB Mobile", "bank": "FCMB", "android": ["com.appzonegroup.fcmb"] },
+  { "id": "union", "name": "Union Bank", "bank": "Union Bank", "android": ["com.ubn.union360mobileRevamp", "com.ceva.ubmobile.stallion"] },
+  { "id": "ecobank", "name": "Ecobank", "bank": "Ecobank", "android": ["com.app.ecobank"] },
+  { "id": "paga", "name": "Paga", "bank": "Paga", "android": ["com.mypaga.customer"] },
+  { "id": "carbon", "name": "Carbon", "bank": "Carbon", "android": ["com.lenddo.mobile.paylater"] },
+  { "id": "fairmoney", "name": "FairMoney", "bank": "FairMoney", "android": ["ng.com.fairmoney.fairmoney"] }
+]
