@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Compass, Mail } from 'lucide-react-native';
+import { Compass, Mail, MessageSquareText } from 'lucide-react-native';
 import { useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 
@@ -9,6 +9,7 @@ import { Divider } from '@/components/ui/Divider';
 import { Screen } from '@/components/ui/Screen';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
+import { hasFeedbackForm, openFeedbackForm } from '@/features/feedback/open-feedback';
 import { env } from '@/lib/env';
 import { usePreferences } from '@/store/preferences.store';
 
@@ -82,6 +83,9 @@ export default function HelpScreen() {
         <Text variant="body" tone="muted">
           Still stuck? We’re happy to help.
         </Text>
+        {hasFeedbackForm ? (
+          <Button label="Report a problem or idea" icon={MessageSquareText} fullWidth={false} onPress={() => openFeedbackForm().catch(() => undefined)} />
+        ) : null}
         <Button label="Email support" icon={Mail} variant="secondary" fullWidth={false} onPress={() => Linking.openURL(`mailto:${env.supportEmail}`)} />
       </View>
     </Screen>

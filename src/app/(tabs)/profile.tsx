@@ -7,6 +7,7 @@ import {
   Info,
   Landmark,
   LogOut,
+  MessageSquareText,
   Palette,
   Send,
   ShieldCheck,
@@ -28,6 +29,7 @@ import { Screen } from '@/components/ui/Screen';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { CURRENCIES } from '@/constants/currencies';
+import { hasFeedbackForm, openFeedbackForm } from '@/features/feedback/open-feedback';
 import { useAuthActions, useAuthSession } from '@/features/auth/auth-context';
 import { useProfile } from '@/features/profile/queries';
 import { env } from '@/lib/env';
@@ -143,6 +145,17 @@ export default function ProfileScreen() {
         />
         <Divider inset={60} />
         <ListRow icon={CircleHelp} title="Help" onPress={() => router.push('/settings/help')} />
+        {hasFeedbackForm ? (
+          <>
+            <Divider inset={60} />
+            <ListRow
+              icon={MessageSquareText}
+              title="Send feedback"
+              detail="Rate taab, report a problem or suggest a feature"
+              onPress={() => openFeedbackForm().catch(() => toast.error('Couldn’t open the form', 'Check your connection and try again.'))}
+            />
+          </>
+        ) : null}
         <Divider inset={60} />
         <ListRow icon={Info} title="About" onPress={() => router.push('/settings/about')} />
       </Section>
