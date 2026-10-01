@@ -1,12 +1,12 @@
 import type { InstalledBankApp } from './bank-apps';
 
-// iOS and web can't see which apps are installed. The payer copies the number
-// and opens their bank app themselves. Android: installed-apps.android.ts.
+// The web can't open phone apps: the payer copies the number and opens their
+// bank app themselves. See installed-apps.android.ts and installed-apps.ios.ts.
 
-export async function findInstalledBankApps(): Promise<InstalledBankApp[]> {
+export async function findBankApps(): Promise<InstalledBankApp[]> {
   return [];
 }
 
-export function openBankApp(_packageName: string): boolean {
+export async function openBankApp(_target: string): Promise<boolean> {
   return false;
 }

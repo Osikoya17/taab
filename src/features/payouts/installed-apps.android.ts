@@ -12,7 +12,7 @@ async function findApp(app: (typeof BANK_APPS)[number]): Promise<InstalledBankAp
     try {
       // Throws when the package isn't installed.
       const icon = await IntentLauncher.getApplicationIconAsync(packageName);
-      return { ...app, packageName, icon: icon || undefined };
+      return { ...app, target: packageName, icon: icon || undefined, via: 'app' };
     } catch {
       // Try the bank's other app, if it has one.
     }
@@ -20,7 +20,7 @@ async function findApp(app: (typeof BANK_APPS)[number]): Promise<InstalledBankAp
   return null;
 }
 
-export function findInstalledBankApps(): Promise<InstalledBankApp[]> {
+export function findBankApps(): Promise<InstalledBankApp[]> {
   lookup ??= Promise.all(BANK_APPS.map(findApp))
     .then((apps) => apps.filter((app): app is InstalledBankApp => app !== null))
     .catch(() => {
@@ -30,7 +30,7 @@ export function findInstalledBankApps(): Promise<InstalledBankApp[]> {
   return lookup;
 }
 
-export function openBankApp(packageName: string): boolean {
+export async function openBankApp(packageName: string): Promise<boolean> {
   try {
     IntentLauncher.openApplication(packageName);
     return true;

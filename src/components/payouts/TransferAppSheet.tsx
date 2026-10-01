@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { ChevronRight, Landmark } from 'lucide-react-native';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -10,7 +10,7 @@ import type { RankedBankApp } from '@/features/payouts/bank-apps';
 
 const TAG_COPY = { yours: 'Your bank', theirs: 'Same bank as them' } as const;
 
-/** Like Android's "Open with": the banking apps on this phone, with the account number already copied. */
+/** Like Android's "Open with": banking apps to pay from, with the account number already copied. */
 export function TransferAppSheet({
   visible,
   onClose,
@@ -31,10 +31,10 @@ export function TransferAppSheet({
       onClose={onClose}
       title="Transfer with…"
       description={`Account number copied. Paste it in your bank app to pay ${payeeName}, then come back and record the payment.`}>
-      <View className="gap-1">
+      <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 4 }} showsVerticalScrollIndicator={false}>
         {apps.map((app) => (
           <PressableScale
-            key={app.packageName}
+            key={app.target}
             onPress={() => onPick(app)}
             accessibilityRole="button"
             accessibilityLabel={`Open ${app.name}${app.tag ? `, ${TAG_COPY[app.tag]}` : ''}`}
@@ -48,16 +48,16 @@ export function TransferAppSheet({
             )}
             <View className="flex-1">
               <Text variant="bodyStrong">{app.name}</Text>
-              {app.tag ? (
+              {app.tag || app.via === 'store' ? (
                 <Text variant="caption" tone="muted">
-                  {TAG_COPY[app.tag]}
+                  {[app.tag ? TAG_COPY[app.tag] : null, app.via === 'store' ? 'Opens the App Store, then tap Open' : null].filter(Boolean).join(' · ')}
                 </Text>
               ) : null}
             </View>
             <ChevronRight size={18} color={colors.faint} />
           </PressableScale>
         ))}
-      </View>
+      </ScrollView>
       <Text variant="caption" tone="faint" className="mt-3 text-center">
         Bank not here? Open it yourself and paste the number.
       </Text>

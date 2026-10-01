@@ -10,7 +10,7 @@ import { Text } from '@/components/ui/Text';
 import { useColors } from '@/constants/theme';
 import { rankBankApps, type RankedBankApp } from '@/features/payouts/bank-apps';
 import { formatAccountNumber } from '@/features/payouts/banks';
-import { findInstalledBankApps, openBankApp } from '@/features/payouts/installed-apps';
+import { findBankApps, openBankApp } from '@/features/payouts/installed-apps';
 import { useMyPayouts } from '@/features/payouts/queries';
 import { haptics } from '@/lib/haptics';
 import type { MemberPayout } from '@/services/payouts.service';
@@ -47,7 +47,7 @@ export function PayToCard({ account, name, compact = false }: { account?: Member
   async function transfer() {
     if (!account || !(await copyNumber())) return;
     setFinding(true);
-    const installed = await findInstalledBankApps();
+    const installed = await findBankApps();
     setFinding(false);
     if (installed.length === 0) {
       toast.show('Account number copied', `Open your bank app and paste it to pay ${name}.`);
@@ -57,9 +57,9 @@ export function PayToCard({ account, name, compact = false }: { account?: Member
     setChoosing(true);
   }
 
-  function pick(app: RankedBankApp) {
+  async function pick(app: RankedBankApp) {
     setChoosing(false);
-    if (!openBankApp(app.packageName)) toast.error(`Couldn’t open ${app.name}`, 'Open it yourself and paste the number.');
+    if (!(await openBankApp(app.target))) toast.error(`Couldn’t open ${app.name}`, 'Open it yourself and paste the number.');
   }
 
   if (!account) {
