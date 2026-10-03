@@ -55,6 +55,7 @@ const operations: Record<string, Operation> = {
   'settlements/listGroupSettlements': operation(id, localSettlementsService.listGroupSettlements),
   'settlements/recordSettlement': operation(z.tuple([settlementSchema]), localSettlementsService.recordSettlement),
   'settlements/listPending': operation(none, localSettlementsService.listPending),
+  'settlements/explainGroup': operation(id, localSettlementsService.explainGroup),
   'settlements/respondToSettlement': operation(z.tuple([idSchema, z.enum(['confirm', 'decline'])]), localSettlementsService.respondToSettlement),
   'activity/listActivity': operation(z.tuple([z.object({ before: z.string().max(300).optional(), groupId: idSchema.optional() }).nullish()]), (filter) => localActivityService.listActivity(filter ?? undefined)),
   'recurring/list': operation(id, localRecurringService.list),

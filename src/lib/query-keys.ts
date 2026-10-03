@@ -9,6 +9,7 @@ export const queryKeys = {
   expenseHistory: (id: string) => ['expense', id, 'history'] as const,
   settle: (groupId?: string) => ['settle', groupId ?? 'all'] as const,
   pendingPayments: ['settle', 'pending'] as const,
+  settleExplain: (groupId: string) => ['settle', 'explain', groupId] as const,
   activity: (groupId?: string) => ['activity', groupId ?? 'all'] as const,
   reminder: (groupId: string, userId: string) => ['reminder', groupId, userId] as const,
   recurring: (groupId: string) => ['recurring', groupId] as const,

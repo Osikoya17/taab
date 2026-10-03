@@ -123,6 +123,7 @@ function RootNavigator({ onReady }: { onReady: (ready: boolean) => void }) {
             <Stack.Screen name="group/[id]/index" />
             <Stack.Screen name="group/[id]/invite" options={{ presentation: 'modal' }} />
             <Stack.Screen name="group/[id]/recurring" />
+            <Stack.Screen name="group/[id]/settle-math" />
             <Stack.Screen name="expense/new" options={{ presentation: 'modal' }} />
             <Stack.Screen name="expense/[id]/index" />
             <Stack.Screen name="expense/[id]/edit" options={{ presentation: 'modal' }} />

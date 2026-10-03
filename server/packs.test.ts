@@ -273,6 +273,19 @@ test('packs: free core, credits, purchases, scans and reports', async (t) => {
       assert.equal((await fetch(`${base}${scan.receiptUrl}`, { headers: { Authorization: 'Bearer bob' } })).status, 200, 'the taab can see it once it’s an expense');
     });
 
+    await t.test('members can see how payments were simplified; others cannot', async () => {
+      const explained = await rpc('bob', 'settlements/explainGroup', [trip.id]);
+      assert.equal(explained.status, 200);
+      assert.ok(explained.data.simplified.length <= explained.data.direct.length, 'never more payments than paying back directly');
+      const settled = new Map(explained.data.positions.map((p: { userId: string; net: number }) => [p.userId, p.net]));
+      for (const t of explained.data.simplified) {
+        settled.set(t.fromUserId, (settled.get(t.fromUserId) ?? 0) + t.amount);
+        settled.set(t.toUserId, (settled.get(t.toUserId) ?? 0) - t.amount);
+      }
+      assert.ok([...settled.values()].every((v) => v === 0), 'the plan settles everyone');
+      assert.equal((await rpc('eve', 'settlements/explainGroup', [trip.id])).status, 403);
+    });
+
     await t.test('the trip report is free for members and separates unconfirmed payments', async () => {
       const other = (await rpc('alice', 'groups/listGroups')).data.find((g: { group: { id: string } }) => g.group.id !== trip.id).group.id;
       assert.equal((await rpc('alice', 'reports/getGroupReport', [other])).status, 200, 'no pack needed');

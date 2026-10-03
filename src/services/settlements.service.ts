@@ -1,6 +1,7 @@
 import { connectService } from './api/service';
 import { isWithinAmountLimit } from '@/constants/currencies';
-import { simplifyDebts } from '@/features/settlements/balances';
+import { countsTowardBalance, simplifyDebts } from '@/features/settlements/balances';
+import { explainSettlement, type SettlementExplanation } from '@/features/settlements/explain';
 import type { CurrencyCode, MinorUnits, Settlement, SettlementMethod } from '@/types/models';
 import { payoutFor, type MemberPayout } from './payouts.service';
 import { formatMoney } from '@/utils/money';
@@ -10,6 +11,16 @@ import { createId, read, write, type MockDatabase } from './mock/db';
 import { groupBalances, groupsForUser, logActivity, memberName, notifyUser, requireGroup, touchGroup } from './mock/ledger';
 import { requireSession } from './session';
 import { settlementSchema } from './validation';
+
+/** How a taab's payments were simplified, for the "How?" screen. Amounts in the taab's currency. */
+export type GroupSettlementExplanation = SettlementExplanation & {
+  groupId: string;
+  groupName: string;
+  currency: CurrencyCode;
+  names: Record<string, string>;
+  /** Recorded payments still waiting for the receiver; not counted yet. */
+  waiting: MinorUnits;
+};
 
 export type SettleSuggestion = {
   groupId: string;
@@ -53,6 +64,29 @@ export const localSettlementsService = {
    * Suggested payments that involve you, based on the simplified debt graph of
    * each group. Original expenses stay untouched.
    */
+  /** The working behind a taab's simplified payments: direct debts, positions and the plan. */
+  async explainGroup(groupId: string): Promise<GroupSettlementExplanation> {
+    const me = requireSession();
+    return read((db) => {
+      const group = requireGroup(db, groupId, me.userId);
+      const settlements = db.settlements.filter((s) => s.groupId === groupId);
+      const explanation = explainSettlement(
+        group.members.map((m) => m.userId),
+        db.expenses.filter((e) => e.groupId === groupId),
+        settlements.filter(countsTowardBalance),
+      );
+      const ids = new Set([...explanation.positions.map((p) => p.userId), ...explanation.direct.flatMap((t) => [t.fromUserId, t.toUserId])]);
+      return {
+        ...explanation,
+        groupId,
+        groupName: group.name,
+        currency: group.currency,
+        names: Object.fromEntries([...ids].map((id) => [id, memberName(group, id)])),
+        waiting: settlements.filter((s) => s.status === 'pending').reduce((sum, s) => sum + s.amount, 0),
+      };
+    });
+  },
+
   async getSuggestions(groupId?: string): Promise<SettleSuggestion[]> {
     const me = requireSession();
     return read((db) => {

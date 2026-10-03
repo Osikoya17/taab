@@ -1,6 +1,7 @@
 import { connectService } from './api/service';
 import { OPERATIONAL_LIMITS } from '@/features/billing/products';
-import { simplifyDebts, totalOutstanding, type Transfer } from '@/features/settlements/balances';
+import { countsTowardBalance, simplifyDebts, totalOutstanding, type Transfer } from '@/features/settlements/balances';
+import { directDebts } from '@/features/settlements/explain';
 import { env } from '@/lib/env';
 import type { CurrencyCode, Group, GroupMember, GroupType, MinorUnits } from '@/types/models';
 
@@ -49,6 +50,8 @@ export type GroupDetail = GroupSummary & {
   balances: MemberBalance[];
   /** Simplified transfers that would settle the whole group. */
   transfers: Transfer[];
+  /** Payments it would take if everyone paid back directly, without simplifying. */
+  directPayments: number;
 };
 
 export type Invite =
@@ -95,6 +98,10 @@ function detail(db: MockDatabase, group: Group, userId: string): GroupDetail {
       pendingPaid: pending.paid.get(m.userId) ?? 0,
     })),
     transfers: simplifyDebts(balances),
+    directPayments: directDebts(
+      db.expenses.filter((e) => e.groupId === group.id),
+      db.settlements.filter((s) => s.groupId === group.id && countsTowardBalance(s)),
+    ).length,
   };
 }
 

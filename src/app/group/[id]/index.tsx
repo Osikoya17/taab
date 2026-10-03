@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowRightLeft, MoreHorizontal, Plus, UserPlus } from 'lucide-react-native';
+import { ArrowRightLeft, ChevronRight, MoreHorizontal, Plus, UserPlus } from 'lucide-react-native';
 import { useState } from 'react';
 import { FlatList, RefreshControl, Share, View } from 'react-native';
 
@@ -20,10 +20,12 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { IconButton } from '@/components/ui/IconButton';
 import { Money } from '@/components/ui/Money';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
 import { BalanceSkeleton, LoadingSkeleton } from '@/components/ui/Skeleton';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
+import { useColors } from '@/constants/theme';
 import { useAuthSession } from '@/features/auth/auth-context';
 import { EXTRAS_ENABLED } from '@/features/billing/products';
 import { useDisplayCurrency } from '@/features/currency/display';
@@ -55,6 +57,7 @@ export default function GroupDetailScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const { display, convert } = useDisplayCurrency();
+  const colors = useColors();
 
   const detail = group.data;
   const feed: FeedItem[] = [
@@ -129,6 +132,25 @@ export default function GroupDetailScreen() {
           Balances
         </Text>
         <MemberBalances balances={detail.balances} currency={detail.group.currency} meId={meId} />
+        {detail.transfers.length > 0 ? (
+          <PressableScale
+            onPress={() => router.push({ pathname: '/group/[id]/settle-math', params: { id } })}
+            accessibilityRole="button"
+            accessibilityLabel="See how the payments were worked out"
+            className="mt-4 flex-row items-center gap-3 rounded-2xl bg-sunken px-4 py-3">
+            <View className="flex-1">
+              <Text variant="bodyStrong">
+                {detail.directPayments > detail.transfers.length
+                  ? `${detail.directPayments} payments → ${detail.transfers.length}`
+                  : `${detail.transfers.length} ${detail.transfers.length === 1 ? 'payment settles' : 'payments settle'} everyone`}
+              </Text>
+              <Text variant="caption" tone="muted">
+                {detail.directPayments > detail.transfers.length ? 'We simplified this for you. See how' : 'See how it’s worked out'}
+              </Text>
+            </View>
+            <ChevronRight size={18} color={colors.faint} />
+          </PressableScale>
+        ) : null}
       </Surface>
 
       {EXTRAS_ENABLED ? (

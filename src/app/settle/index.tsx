@@ -62,6 +62,7 @@ export default function SettleScreen() {
                     suggestion={s}
                     showGroup={!groupId}
                     onRecord={() => router.push({ pathname: '/settle/record', params: recordParams(s) })}
+                    onExplain={() => router.push({ pathname: '/group/[id]/settle-math', params: { id: s.groupId } })}
                   />
                 ))}
               </View>
@@ -79,6 +80,7 @@ export default function SettleScreen() {
                     suggestion={s}
                     showGroup={!groupId}
                     onRecord={() => router.push({ pathname: '/settle/record', params: recordParams(s) })}
+                    onExplain={() => router.push({ pathname: '/group/[id]/settle-math', params: { id: s.groupId } })}
                     onRemind={() => router.push({ pathname: '/reminder/new', params: { groupId: s.groupId, userId: s.fromUserId } })}
                   />
                 ))}

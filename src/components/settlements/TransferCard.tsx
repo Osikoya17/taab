@@ -5,6 +5,7 @@ import { PayToCard } from '@/components/payouts/PayToCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Money } from '@/components/ui/Money';
+import { PressableScale } from '@/components/ui/PressableScale';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { useColors } from '@/constants/theme';
@@ -16,10 +17,12 @@ export type TransferCardProps = {
   showGroup?: boolean;
   onRecord: () => void;
   onRemind?: () => void;
+  /** Opens the working out for this taab. */
+  onExplain?: () => void;
 };
 
 /** "You owe Gbayin ₦8,500" with the action that resolves it. */
-export function TransferCard({ suggestion, showGroup = true, onRecord, onRemind }: TransferCardProps) {
+export function TransferCard({ suggestion, showGroup = true, onRecord, onRemind, onExplain }: TransferCardProps) {
   const colors = useColors();
   const { format } = useDisplayCurrency();
   const youOwe = suggestion.direction === 'you_owe';
@@ -66,6 +69,13 @@ export function TransferCard({ suggestion, showGroup = true, onRecord, onRemind 
           </>
         )}
       </View>
+      {onExplain ? (
+        <PressableScale onPress={onExplain} accessibilityRole="button" hitSlop={8} className="-mt-1 items-center py-1">
+          <Text variant="caption" tone="muted">
+            How was this worked out?
+          </Text>
+        </PressableScale>
+      ) : null}
     </Surface>
   );
 }

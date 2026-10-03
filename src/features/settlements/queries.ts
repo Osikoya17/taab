@@ -10,6 +10,11 @@ export function useSettleSuggestions(groupId?: string) {
   return useQuery({ queryKey: queryKeys.settle(groupId), queryFn: () => settlementsService.getSuggestions(groupId) });
 }
 
+/** The working behind a taab's simplified payments. */
+export function useSettlementExplanation(groupId: string) {
+  return useQuery({ queryKey: queryKeys.settleExplain(groupId), queryFn: () => settlementsService.explainGroup(groupId), enabled: !!groupId });
+}
+
 /** Payments waiting for a receiver to confirm them, across all your taabs. */
 export function usePendingPayments() {
   return useQuery({ queryKey: queryKeys.pendingPayments, queryFn: () => settlementsService.listPending() });
