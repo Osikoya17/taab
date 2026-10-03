@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
+import { EXTRAS_ENABLED } from '@/features/billing/products';
 import { SplashOverlay } from '@/components/brand/SplashOverlay';
 import { NotificationPrompt } from '@/components/notifications/NotificationPrompt';
 import { AppLock } from '@/components/security/AppLock';
@@ -129,11 +130,14 @@ function RootNavigator({ onReady }: { onReady: (ready: boolean) => void }) {
             <Stack.Screen name="settle/record" options={{ presentation: 'modal' }} />
             <Stack.Screen name="reminder/new" options={{ presentation: 'modal' }} />
             <Stack.Screen name="notifications/index" />
-            <Stack.Screen name="subscription/index" />
-            <Stack.Screen name="extras/index" />
-            <Stack.Screen name="scan/index" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="scan/[id]" />
-            <Stack.Screen name="scan/bulk" />
+            {/* Receipt scanning and packs are switched off (EXTRAS_ENABLED); links to them land on Home. */}
+            <Stack.Protected guard={EXTRAS_ENABLED}>
+              <Stack.Screen name="subscription/index" />
+              <Stack.Screen name="extras/index" />
+              <Stack.Screen name="scan/index" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="scan/[id]" />
+              <Stack.Screen name="scan/bulk" />
+            </Stack.Protected>
             <Stack.Screen name="settings" />
           </Stack.Protected>
 

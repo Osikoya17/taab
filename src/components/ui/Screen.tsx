@@ -11,7 +11,11 @@ export type ScreenProps = {
   scroll?: boolean;
   /** Leave room for the floating tab bar. */
   withTabBar?: boolean;
-  /** Apply the top safe-area inset (off for modals with their own header). */
+  /**
+   * Apply the top safe-area inset. Modals pass false: an iOS modal is a card that
+   * already starts below the status bar. Android shows modals full screen, so
+   * they still get the inset there.
+   */
   safeTop?: boolean;
   /** Pin content (e.g. a CTA) to the bottom, above the keyboard. */
   footer?: ReactNode;
@@ -67,7 +71,7 @@ export function Screen({
   );
 
   return (
-    <View className={cx('flex-1', background === 'canvas' ? 'bg-canvas' : 'bg-surface')} style={{ paddingTop: safeTop ? insets.top : 0 }}>
+    <View className={cx('flex-1', background === 'canvas' ? 'bg-canvas' : 'bg-surface')} style={{ paddingTop: safeTop || Platform.OS !== 'ios' ? insets.top : 0 }}>
       {keyboard ? (
         <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           {content}

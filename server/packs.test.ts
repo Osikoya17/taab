@@ -273,9 +273,9 @@ test('packs: free core, credits, purchases, scans and reports', async (t) => {
       assert.equal((await fetch(`${base}${scan.receiptUrl}`, { headers: { Authorization: 'Bearer bob' } })).status, 200, 'the taab can see it once it’s an expense');
     });
 
-    await t.test('the trip report needs the pack and separates unconfirmed payments', async () => {
+    await t.test('the trip report is free for members and separates unconfirmed payments', async () => {
       const other = (await rpc('alice', 'groups/listGroups')).data.find((g: { group: { id: string } }) => g.group.id !== trip.id).group.id;
-      assert.equal((await rpc('alice', 'reports/getGroupReport', [other])).status, 403);
+      assert.equal((await rpc('alice', 'reports/getGroupReport', [other])).status, 200, 'no pack needed');
       assert.equal((await rpc('eve', 'reports/getGroupReport', [trip.id])).status, 403);
       assert.equal((await rpc('bob', 'settlements/recordSettlement', [{ groupId: trip.id, fromUserId: 'bob', toUserId: 'alice', amount: 500, method: 'cash' }])).status, 200);
       const report = (await rpc('bob', 'reports/getGroupReport', [trip.id])).data;

@@ -7,10 +7,8 @@ import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { useColors } from '@/constants/theme';
 import { PRODUCTS } from '@/features/billing/products';
-import { useGroupPack, useGroupReport } from '@/features/packs/queries';
-import { exportGroupReport } from '@/features/reports/export';
-import { haptics } from '@/lib/haptics';
-import { toast } from '@/store/toast.store';
+import { useGroupPack } from '@/features/packs/queries';
+import { useDownloadGroupReport } from '@/features/reports/use-download-report';
 import { formatMoney } from '@/utils/money';
 
 /** A taab's trip & event pack: what it adds, or the tools once someone buys it. */
@@ -18,21 +16,10 @@ export function TripPackCard({ groupId }: { groupId: string }) {
   const colors = useColors();
   const router = useRouter();
   const pack = useGroupPack(groupId);
-  const report = useGroupReport();
+  const report = useDownloadGroupReport();
   if (!pack.data) return null;
   const { owned, credits, someoneElseBuying } = pack.data;
   const price = PRODUCTS.trip_pack.price;
-
-  async function download() {
-    try {
-      const data = await report.mutateAsync(groupId);
-      const result = await exportGroupReport(data);
-      haptics.success();
-      toast.show(result === 'shared' ? 'Report ready' : 'Report downloaded', result === 'saved' ? 'Open it in your browser to print or save as PDF.' : undefined);
-    } catch {
-      toast.error('Couldn’t make the report', 'Check your connection and try again.');
-    }
-  }
 
   return (
     <Surface className="gap-3">
@@ -54,7 +41,7 @@ export function TripPackCard({ groupId }: { groupId: string }) {
       {owned ? (
         <View className="flex-row gap-2">
           <Button label="Scan receipts" icon={ScanLine} size="md" variant="secondary" className="flex-1" onPress={() => router.push({ pathname: '/scan/bulk', params: { groupId } })} />
-          <Button label="Report" icon={FileDown} size="md" variant="secondary" className="flex-1" loading={report.isPending} onPress={download} />
+          <Button label="Report" icon={FileDown} size="md" variant="secondary" className="flex-1" loading={report.pending} onPress={() => report.download(groupId)} />
         </View>
       ) : !someoneElseBuying ? (
         <>

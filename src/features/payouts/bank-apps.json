@@ -3,6 +3,7 @@
   {"id": "moniepoint", "name": "Moniepoint", "bank": "Moniepoint", "android": ["com.moniepoint.personal"], "ios": {"appStoreId": "6452756675"}},
   {"id": "palmpay", "name": "PalmPay", "bank": "PalmPay", "android": ["com.transsnet.palmpay"], "ios": {"appStoreId": "1479656820"}},
   {"id": "kuda", "name": "Kuda", "bank": "Kuda", "android": ["com.kudabank.app"], "ios": {"appStoreId": "1467373738", "link": "https://kuda.com/"}},
+  {"id": "zap", "name": "Zap", "bank": "Zap", "android": ["com.paystack.zap"], "ios": {"appStoreId": "6463129864"}},
   {"id": "gtbank", "name": "GTWorld", "bank": "GTBank", "android": ["com.gtbank.gtworldv1"], "ios": {"appStoreId": "1227647130"}},
   {"id": "access", "name": "Access More", "bank": "Access Bank", "android": ["com.accessbank.nextgen", "com.accessbank.accessbankapp"], "ios": {"appStoreId": "1501024389"}},
   {"id": "zenith", "name": "Zenith Bank", "bank": "Zenith Bank", "android": ["com.zenithBank.eazymoney"], "ios": {"appStoreId": "732850254"}},

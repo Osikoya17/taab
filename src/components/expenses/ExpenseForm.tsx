@@ -18,6 +18,7 @@ import { FormInput } from '@/components/ui/FormInput';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { CURRENCIES, isWithinAmountLimit, MAX_AMOUNT, SUPPORTED_CURRENCIES } from '@/constants/currencies';
+import { EXTRAS_ENABLED } from '@/features/billing/products';
 import { useDisplayCurrency } from '@/features/currency/display';
 import { useExchangeRates } from '@/features/currency/queries';
 import { convertMinor, formatRate, rateBetween } from '@/features/currency/rates';
@@ -207,7 +208,7 @@ export function ExpenseForm({ groups, initialGroupId, expense, initialRepeat, sc
         <View className="mt-4">
           <ScanNotice draft={scan.draft} />
         </View>
-      ) : !expense ? (
+      ) : !expense && EXTRAS_ENABLED ? (
         <View className="mt-3 items-center">
           <Button
             label="Scan a receipt"

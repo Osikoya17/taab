@@ -60,6 +60,14 @@ export function parseAllowance(value: string | undefined): number | null {
   return Number.isSafeInteger(n) && n >= 1 && n <= 1000 ? n : null;
 }
 
+/**
+ * Receipt scanning and the paid packs are switched off: the October 2026
+ * interest survey showed little demand for scanning and little willingness to
+ * pay, so taab is completely free for now. The code stays, ready to switch back
+ * on; the trip report is free for every member instead.
+ */
+export const EXTRAS_ENABLED = false;
+
 /** Credits one scan uses. */
 export const SCAN_COST = 1;
 

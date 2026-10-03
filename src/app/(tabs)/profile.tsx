@@ -29,6 +29,7 @@ import { Screen } from '@/components/ui/Screen';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { CURRENCIES } from '@/constants/currencies';
+import { EXTRAS_ENABLED } from '@/features/billing/products';
 import { hasFeedbackForm, openFeedbackForm } from '@/features/feedback/open-feedback';
 import { useAuthActions, useAuthSession } from '@/features/auth/auth-context';
 import { useProfile } from '@/features/profile/queries';
@@ -113,7 +114,7 @@ export default function ProfileScreen() {
       </View>
 
       <View className="mt-6">
-        <ExtrasCard onPress={() => router.push('/extras')} />
+        {EXTRAS_ENABLED ? <ExtrasCard onPress={() => router.push('/extras')} /> : null}
       </View>
 
       <Section title="Account">
@@ -126,7 +127,7 @@ export default function ProfileScreen() {
           onPress={() => router.push('/settings/currency')}
         />
         <Divider inset={60} />
-        <ListRow icon={Landmark} title="Bank account" detail="Where friends pay you back" onPress={() => router.push('/settings/payout')} />
+        <ListRow icon={Landmark} title="Bank account" onPress={() => router.push('/settings/payout')} />
         <Divider inset={60} />
         <ListRow icon={Bell} title="Notifications" onPress={() => router.push('/settings/notifications')} />
         <Divider inset={60} />
@@ -134,8 +135,12 @@ export default function ProfileScreen() {
       </Section>
 
       <Section title="taab">
-        <ListRow icon={ScanLine} title="Extras" onPress={() => router.push('/extras')} />
-        <Divider inset={60} />
+        {EXTRAS_ENABLED ? (
+          <>
+            <ListRow icon={ScanLine} title="Extras" onPress={() => router.push('/extras')} />
+            <Divider inset={60} />
+          </>
+        ) : null}
         <ListRow
           icon={Send}
           title="Invite friends"
@@ -151,7 +156,6 @@ export default function ProfileScreen() {
             <ListRow
               icon={MessageSquareText}
               title="Send feedback"
-              detail="Rate taab, report a problem or suggest a feature"
               onPress={() => openFeedbackForm().catch(() => toast.error('Couldn’t open the form', 'Check your connection and try again.'))}
             />
           </>
@@ -164,7 +168,6 @@ export default function ProfileScreen() {
         <ListRow
           icon={Fingerprint}
           title="App lock"
-          detail={Platform.OS === 'web' ? 'Fingerprint or Face ID, in the phone app' : 'Fingerprint or Face ID'}
           value={Platform.OS === 'web' ? undefined : biometricLock ? 'On' : 'Off'}
           onPress={() => router.push('/settings/security')}
         />

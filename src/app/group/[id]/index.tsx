@@ -25,10 +25,12 @@ import { BalanceSkeleton, LoadingSkeleton } from '@/components/ui/Skeleton';
 import { Surface } from '@/components/ui/Surface';
 import { Text } from '@/components/ui/Text';
 import { useAuthSession } from '@/features/auth/auth-context';
+import { EXTRAS_ENABLED } from '@/features/billing/products';
 import { useDisplayCurrency } from '@/features/currency/display';
 import { useGroupExpenses, useGroupSettlements } from '@/features/expenses/queries';
 import { groupSummaryText } from '@/features/groups/export';
 import { useGroup, useLeaveGroup } from '@/features/groups/queries';
+import { useDownloadGroupReport } from '@/features/reports/use-download-report';
 import { useBottomInset } from '@/hooks/use-bottom-inset';
 import { isServiceError } from '@/services/api/errors';
 import type { ExpenseListItem } from '@/services/expenses.service';
@@ -42,6 +44,7 @@ export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const goBack = useGoBack();
+  const { download: downloadReport } = useDownloadGroupReport();
   const { user } = useAuthSession();
   const meId = user?.id ?? '';
   const group = useGroup(id);
@@ -128,9 +131,11 @@ export default function GroupDetailScreen() {
         <MemberBalances balances={detail.balances} currency={detail.group.currency} meId={meId} />
       </Surface>
 
-      <View className="mt-4">
-        <TripPackCard groupId={id} />
-      </View>
+      {EXTRAS_ENABLED ? (
+        <View className="mt-4">
+          <TripPackCard groupId={id} />
+        </View>
+      ) : null}
 
       <Text variant="subheading" className="mb-1 mt-8" accessibilityRole="header">
         Expenses
@@ -202,6 +207,7 @@ export default function GroupDetailScreen() {
           onRecurring={() => router.push(`/group/${id}/recurring`)}
           onPayout={() => router.push({ pathname: '/settings/payout', params: { groupId: id } })}
           onExport={exportSummary}
+          onReport={() => downloadReport(id)}
           onLeave={() => setConfirmLeave(true)}
         />
       ) : null}

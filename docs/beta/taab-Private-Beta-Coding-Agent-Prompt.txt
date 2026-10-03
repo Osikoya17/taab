@@ -1,0 +1,39 @@
+OBJECTIVE
+
+Implement a private beta for Taab with a server-owned approved-email list. Only approved accounts may use shared app features. Target 10–15 testers across a few existing groups. Someone with a forwarded APK, web URL or group link must not gain shared-data access merely by signing in. Implement the feature and tests locally; prepare deployment instructions. Do not enable restrictions in production, deploy, distribute builds or approve real users without the owner’s authorization.
+
+INSPECT THE EXISTING PROJECT
+
+Read AGENTS.md and the current repository before editing. The inspected baseline uses Expo ~57.0.25, React Native 0.86.3, Expo Router, npm, Clerk, TanStack Query with persisted device caches, and a Node 24 HTTP/RPC server with SQLite. Start with server/clerk.ts, server/api.ts, server/index.ts, server/push.ts, src/app/_layout.tsx, src/features/auth, src/features/profile/queries.ts, src/lib/query-client.ts, src/services/api/client.ts, errors.ts and service.ts. Reconfirm these paths and package versions. Preserve unrelated changes.
+
+CONFIGURATION AND POLICY
+
+Introduce server-only BETA_ACCESS_MODE and BETA_ALLOWED_EMAILS. Accept private or open mode; production defaults to private when unset and local development may default to open. Invalid mode fails startup. Private mode with an empty or malformed list fails startup with a clear non-sensitive error. Trim and lowercase full email addresses, validate and deduplicate them, match exactly, and do not strip plus tags or Gmail dots. Do not permit domains, wildcards, shared secrets or self-approval. Keep the list out of EXPO_PUBLIC variables, the repository, app bundles, API responses and analytics. Use placeholders in examples. The owner supplies the real approved email before activation.
+
+SERVER ENFORCEMENT
+
+Keep Clerk token signature/session checks, banned/locked checks, verified-primary-email extraction and native-versus-browser authorized-party behaviour. Evaluate beta eligibility only from that authenticated server identity. Add one injectable beta policy shared by the status endpoint and all protected handlers. Add GET /beta/access behind authentication, CORS and existing rate limits. Return only {mode: "private" | "open", status: "approved" | "not_approved"}, with Cache-Control: no-store. A valid unapproved session gets status 200 there; missing or invalid identity does not. Never accept an email query parameter or request body as proof of approval.
+
+API BOUNDARIES AND EXCEPTIONS
+
+Add beta_not_approved to the ServiceErrorCode union, server status mapping, client error decoder and non-retry policy. Reject unapproved feature calls with HTTP 403 and {code: "beta_not_approved"}. Centralize the check before profile, group, expense, membership, receipt, scan, payment, report and notification work; receipt uploads must not be stored before the check. Preserve group membership checks even for approved users. Explicit exceptions are health, CORS preflight, the signed/verified Paystack webhook, the authenticated beta-status endpoint and authenticated own-account deletion. Do not use prefix exceptions or expose other users’ data through deletion. Keep durable deletion/cleanup working for denied and revoked users. Distinguish temporary identity/API failures from lack of beta approval.
+
+CLIENT GATE AND ROUTING
+
+Create an access state machine with signed_out, checking, approved, not_approved and unavailable states. Check before loading domain queries, restoring visible domain data, onboarding setup, protected routes, notification registration or following a pending group invitation. Key the check to the current user and ignore responses from an old session. Recheck on launch, sign-in/account switch, foreground and every 60 seconds while signed in and online. Centralized beta_not_approved responses must immediately move the current session to the waiting state. Do not redirect repeatedly or show the existing generic account-load error for this case. Keep authentication and SSO callback routes accessible.
+
+WAITING SCREEN AND OFFLINE BEHAVIOUR
+
+Use the existing taab typography, light/dark theme, safe areas and accessible controls. Title: "Taab is in private beta". Body: "This email has not been approved for the beta yet. Contact taabsupport@gmail.com to request access." Show only the signed-in user’s own email. Provide Check again, Contact support, Use another account and a confirmed Delete my account action using server cleanup. Contact support opens an email draft only after a tap; do not automatically send or promise approval. While checking or offline in private beta, hide protected content and show a connection/retry state; persisted approval alone must not unlock it. On denial, revocation or account switch, cancel domain requests, clear in-memory and persisted domain data, and prevent stale responses from repopulating it. Preserve app appearance preferences. Preserve the same user’s pending invitation through approval, but clear it on sign-out/account switch.
+
+WORKERS AND REVOCATION
+
+Removing an address and restarting the single API process revokes new protected requests. Keep records and account identity intact unless the user requests deletion. Suppress new user-facing push delivery to unapproved/revoked recipients and discard denied pending delivery jobs using the same policy; do not leave data-bearing pushes as an alternate route. Do not silently run recurring work on behalf of a revoked account. Keep system cleanup, payment verification/refunds and reconciliation of already-started scan credits working. Document that server-side revocation cannot retract screenshots, previously downloaded information or already-delivered notifications, and older APKs may still display historical offline caches.
+
+TESTS AND VERIFICATION
+
+Add meaningful policy, server integration and app-gate tests. Cover normalized matches; malformed/empty/invalid configuration; spoofed email input; verified primary versus secondary/unverified email; banned users; denied feature reads/writes and receipt reads/uploads; no side effects before denial; direct group links; membership enforcement for approved users; expired tokens; allowed status/deletion/health/preflight/webhook paths; revoked push delivery; account-switch races; status-check failure versus not-approved; cached data suppression; approval after Check again; and explicit open/demo mode. Use mocks/test identities, not paid APIs, real emails or real push. Update npm run test:server to include any new server test file. Run npm run lint, npm run typecheck, relevant app tests and npm run test:server. Validate the production web bundle if navigation changes. Report existing warnings separately.
+
+HANDOFF
+
+Update .env.server.example and README with safe placeholders, how to add/remove testers, restart requirements, status endpoint behaviour, the explicit open-mode rollback and offline limitations. Prepare a rollout order that approves the owner and existing chosen testers, ships the updated client/build, then activates private access after authorization. Do not grant all existing accounts approval. Do not change billing, scan allowances or authentication plans, add an admin dashboard, invitation-code system, mail service or unnecessary dependency. If dependencies become necessary, follow AGENTS.md and Expo-compatible installation. Before Expo/React Native code changes, read the installed Expo major version, matching versioned docs and the relevant llms.txt-linked docs. Finish with changed files, test results, configuration still needed and a manual smoke-test checklist.
