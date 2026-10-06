@@ -10,6 +10,7 @@ import { Screen } from '@/components/ui/Screen';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
 import { useGroup } from '@/features/groups/queries';
+import { canExplainSettlement } from '@/features/settlements/explain';
 import { useSettleSuggestions } from '@/features/settlements/queries';
 import type { SettleSuggestion } from '@/services/settlements.service';
 
@@ -62,7 +63,7 @@ export default function SettleScreen() {
                     suggestion={s}
                     showGroup={!groupId}
                     onRecord={() => router.push({ pathname: '/settle/record', params: recordParams(s) })}
-                    onExplain={() => router.push({ pathname: '/group/[id]/settle-math', params: { id: s.groupId } })}
+                    onExplain={canExplainSettlement(s.memberCount) ? () => router.push({ pathname: '/group/[id]/settle-math', params: { id: s.groupId } }) : undefined}
                   />
                 ))}
               </View>
@@ -80,7 +81,7 @@ export default function SettleScreen() {
                     suggestion={s}
                     showGroup={!groupId}
                     onRecord={() => router.push({ pathname: '/settle/record', params: recordParams(s) })}
-                    onExplain={() => router.push({ pathname: '/group/[id]/settle-math', params: { id: s.groupId } })}
+                    onExplain={canExplainSettlement(s.memberCount) ? () => router.push({ pathname: '/group/[id]/settle-math', params: { id: s.groupId } }) : undefined}
                     onRemind={() => router.push({ pathname: '/reminder/new', params: { groupId: s.groupId, userId: s.fromUserId } })}
                   />
                 ))}

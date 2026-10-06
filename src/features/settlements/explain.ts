@@ -119,6 +119,14 @@ export function explainSettlement(memberIds: string[], expenses: ExpenseLike[], 
   };
 }
 
+/**
+ * Simplifying only changes anything with three or more people: between two,
+ * the one payment is the only option. The explanation is shown from there.
+ */
+export function canExplainSettlement(memberCount: number): boolean {
+  return memberCount > 2;
+}
+
 /** Each person's balance after a set of payments; all zero means the payments settle everyone. */
 export function balancesAfter(positionsList: Position[], payments: Transfer[]): Map<string, MinorUnits> {
   const after = new Map(positionsList.map((p) => [p.userId, p.net]));

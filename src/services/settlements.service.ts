@@ -25,6 +25,8 @@ export type GroupSettlementExplanation = SettlementExplanation & {
 export type SettleSuggestion = {
   groupId: string;
   groupName: string;
+  /** People in the taab, so screens know whether simplifying applies. */
+  memberCount: number;
   currency: CurrencyCode;
   fromUserId: string;
   fromName: string;
@@ -101,6 +103,7 @@ export const localSettlementsService = {
           suggestions.push({
             groupId: group.id,
             groupName: group.name,
+            memberCount: group.members.length,
             currency: group.currency,
             fromUserId: t.fromUserId,
             fromName: memberName(group, t.fromUserId),

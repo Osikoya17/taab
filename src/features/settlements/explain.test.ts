@@ -1,4 +1,4 @@
-import { balancesAfter, directDebts, explainSettlement, positions } from './explain';
+import { balancesAfter, canExplainSettlement, directDebts, explainSettlement, positions } from './explain';
 
 const bill = (payer: string, amount: number, shares: Record<string, number>) => ({
   paidBy: [{ userId: payer, amount }],
@@ -6,6 +6,10 @@ const bill = (payer: string, amount: number, shares: Record<string, number>) => 
 });
 
 describe('explaining simplified settlements', () => {
+  it('only applies to taabs with more than two people', () => {
+    expect([2, 3, 6].map(canExplainSettlement)).toEqual([false, true, true]);
+  });
+
   it('turns three overlapping debts into two payments (the PRD example)', () => {
     const expenses = [
       bill('gbayin', 20_000, { ranmi: 20_000 }),

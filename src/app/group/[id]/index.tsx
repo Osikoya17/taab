@@ -32,6 +32,7 @@ import { useDisplayCurrency } from '@/features/currency/display';
 import { useGroupExpenses, useGroupSettlements } from '@/features/expenses/queries';
 import { groupSummaryText } from '@/features/groups/export';
 import { useGroup, useLeaveGroup } from '@/features/groups/queries';
+import { canExplainSettlement } from '@/features/settlements/explain';
 import { useDownloadGroupReport } from '@/features/reports/use-download-report';
 import { useBottomInset } from '@/hooks/use-bottom-inset';
 import { isServiceError } from '@/services/api/errors';
@@ -132,7 +133,7 @@ export default function GroupDetailScreen() {
           Balances
         </Text>
         <MemberBalances balances={detail.balances} currency={detail.group.currency} meId={meId} />
-        {detail.transfers.length > 0 ? (
+        {detail.transfers.length > 0 && canExplainSettlement(detail.group.members.length) ? (
           <PressableScale
             onPress={() => router.push({ pathname: '/group/[id]/settle-math', params: { id } })}
             accessibilityRole="button"

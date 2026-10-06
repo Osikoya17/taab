@@ -1,12 +1,13 @@
 import { useLocalSearchParams } from 'expo-router';
-import { ArrowRight, CircleCheck } from 'lucide-react-native';
-import type { ReactNode } from 'react';
+import { ArrowRight, ChevronDown, ChevronUp, CircleCheck } from 'lucide-react-native';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Divider } from '@/components/ui/Divider';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen } from '@/components/ui/Screen';
 import { LoadingSkeleton } from '@/components/ui/Skeleton';
 import { Surface } from '@/components/ui/Surface';
@@ -20,33 +21,13 @@ import { formatMoney } from '@/utils/money';
 
 const payments = (n: number) => `${n} ${n === 1 ? 'payment' : 'payments'}`;
 
-function Step({ n, title, description, children }: { n: number; title: string; description: string; children: ReactNode }) {
-  return (
-    <View className="mt-8">
-      <View className="flex-row items-center gap-2.5">
-        <View className="h-6 w-6 items-center justify-center rounded-full bg-ink">
-          <Text variant="micro" tone="inverse">
-            {n}
-          </Text>
-        </View>
-        <Text variant="subheading" accessibilityRole="header">
-          {title}
-        </Text>
-      </View>
-      <Text variant="caption" tone="muted" className="mb-3 mt-1.5">
-        {description}
-      </Text>
-      {children}
-    </View>
-  );
-}
-
-/** Smart Settlements, explained: the direct debts, where everyone stands, and the fewest payments. */
+/** Smart Settlements, explained briefly: where everyone stands and the fewest payments. */
 export default function SettleMathScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const { user } = useAuthSession();
   const explanation = useSettlementExplanation(id);
+  const [showDirect, setShowDirect] = useState(false);
 
   if (explanation.isPending || explanation.isError) {
     return (
@@ -59,11 +40,12 @@ export default function SettleMathScreen() {
   }
 
   const data = explanation.data;
-  const name = (userId: string) => (userId === user?.id ? 'You' : (data.names[userId] ?? 'Someone'));
+  const isMe = (userId: string) => userId === user?.id;
+  const name = (userId: string) => (isMe(userId) ? 'You' : (data.names[userId] ?? 'Someone'));
   const money = (amount: number) => formatMoney(amount, data.currency);
-  const simplerBy = data.direct.length - data.simplified.length;
+  const simpler = data.direct.length > data.simplified.length;
   const everyoneEven = [...balancesAfter(data.positions, data.simplified).values()].every((amount) => amount === 0);
-  const involved = data.positions.filter((p) => p.paid || p.share || p.sent || p.received);
+  const standing = data.positions.filter((p) => p.net !== 0).sort((a, b) => b.net - a.net);
 
   const transferList = (list: Transfer[]) => (
     <Surface padded={false} className="px-4">
@@ -93,82 +75,75 @@ export default function SettleMathScreen() {
         <EmptyState illustration="check" title="Everyone’s square" description={`Nobody in ${data.groupName} owes anything right now.`} />
       ) : (
         <>
-          <Surface className="mt-2 items-center">
+          <View className="mt-2 items-center">
             <Text variant="title" className="text-center" style={{ fontVariant: ['tabular-nums'] }}>
-              {simplerBy > 0 ? `${payments(data.direct.length)} → ${data.simplified.length}` : payments(data.simplified.length)}
+              {simpler ? `${payments(data.direct.length)} → ${data.simplified.length}` : payments(data.simplified.length)}
             </Text>
-            <Text variant="body" tone="muted" className="mt-2 text-center">
-              {simplerBy > 0
-                ? `We simplified this for you: ${payments(simplerBy)} fewer. Everyone still ends up exactly where they should.`
-                : 'This is already the fewest payments possible.'}
+            <Text variant="body" tone="muted" className="mt-1 text-center">
+              {simpler ? 'Same result, fewer transfers.' : 'Already the fewest payments.'}
             </Text>
+          </View>
+
+          <Text variant="label" tone="muted" className="mb-2 mt-7">
+            Where everyone stands
+          </Text>
+          <Surface padded={false} className="px-4">
+            {standing.map((p, i) => (
+              <View key={p.userId}>
+                {i > 0 ? <Divider /> : null}
+                <View className="flex-row items-center py-3">
+                  <Text variant="bodyStrong" className="flex-1">
+                    {name(p.userId)}
+                  </Text>
+                  <Text variant="body" tone="muted">
+                    {p.net > 0 ? (isMe(p.userId) ? 'are owed ' : 'is owed ') : isMe(p.userId) ? 'owe ' : 'owes '}
+                  </Text>
+                  <Text variant="bodyStrong" tone={p.net > 0 ? 'positive' : 'negative'} style={{ fontVariant: ['tabular-nums'] }}>
+                    {money(Math.abs(p.net))}
+                  </Text>
+                </View>
+              </View>
+            ))}
           </Surface>
+          <Text variant="caption" tone="faint" className="mt-2">
+            What each person paid, minus their share, after payments so far.
+          </Text>
 
-          <Step
-            n={1}
-            title="If everyone paid back directly"
-            description="Each person pays back whoever covered them, bill by bill. What two people owe each other cancels out, and confirmed payments are taken off.">
-            {transferList(data.direct)}
-          </Step>
-
-          <Step n={2} title="Where everyone stands" description="Balance = what you paid − your share + payments you sent − payments you received.">
-            <Surface padded={false} className="px-4">
-              {involved.map((p, i) => {
-                const parts = [`Paid ${money(p.paid)}`, `share ${money(p.share)}`];
-                if (p.sent) parts.push(`sent ${money(p.sent)}`);
-                if (p.received) parts.push(`received ${money(p.received)}`);
-                const verb = p.net > 0 ? (p.userId === user?.id ? 'are owed' : 'is owed') : p.net < 0 ? (p.userId === user?.id ? 'owe' : 'owes') : p.userId === user?.id ? 'are even' : 'is even';
-                return (
-                  <View key={p.userId}>
-                    {i > 0 ? <Divider /> : null}
-                    <View className="flex-row items-center gap-3 py-3">
-                      <View className="flex-1">
-                        <Text variant="bodyStrong">{name(p.userId)}</Text>
-                        <Text variant="caption" tone="muted">
-                          {parts.join(' · ')}
-                        </Text>
-                      </View>
-                      <View className="items-end">
-                        <Text variant="bodyStrong" tone={p.net > 0 ? 'positive' : p.net < 0 ? 'negative' : 'muted'} style={{ fontVariant: ['tabular-nums'] }}>
-                          {money(Math.abs(p.net))}
-                        </Text>
-                        <Text variant="caption" tone="muted">
-                          {verb}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-            </Surface>
-          </Step>
-
-          <Step
-            n={3}
-            title="The fewest payments"
-            description="The person who owes the most pays the person owed the most, and so on until everyone is even. Nobody pays more than they owe or receives more than they’re owed.">
-            {transferList(data.simplified)}
-          </Step>
-
+          <Text variant="label" tone="muted" className="mb-2 mt-7">
+            The {payments(data.simplified.length)}
+          </Text>
+          {transferList(data.simplified)}
           {everyoneEven ? (
-            <View className="mt-4 flex-row items-center gap-2.5 rounded-2xl bg-positive-soft px-4 py-3">
-              <CircleCheck size={18} color={colors.positive} strokeWidth={2} />
-              <Text variant="label" className="flex-1">
-                After these {payments(data.simplified.length)}, everyone is at {money(0)}.
-              </Text>
+            <View className="mt-3 flex-row items-center gap-2">
+              <CircleCheck size={16} color={colors.positive} strokeWidth={2} />
+              <Text variant="label">Everyone ends at {money(0)}.</Text>
             </View>
+          ) : null}
+
+          {simpler ? (
+            <>
+              <PressableScale
+                onPress={() => setShowDirect((v) => !v)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showDirect }}
+                className="mt-7 flex-row items-center justify-center gap-1.5 py-2">
+                <Text variant="label" tone="muted">
+                  {showDirect ? 'Hide' : 'Show'} the {payments(data.direct.length)} without simplifying
+                </Text>
+                {showDirect ? <ChevronUp size={16} color={colors.muted} /> : <ChevronDown size={16} color={colors.muted} />}
+              </PressableScale>
+              {showDirect ? <View className="mt-2">{transferList(data.direct)}</View> : null}
+            </>
           ) : null}
         </>
       )}
 
       {data.waiting > 0 ? (
         <Text variant="caption" tone="faint" className="mt-6 text-center">
-          {money(data.waiting)} recorded as paid is waiting for the receiver to confirm, so it isn’t counted yet.
+          {money(data.waiting)} waiting for confirmation isn’t counted yet.
         </Text>
       ) : null}
-      <Text variant="caption" tone="faint" className="mb-4 mt-6 text-center">
-        Amounts in {data.currency}, this taab’s currency. Your expense history isn’t changed.
-      </Text>
+      <View className="h-6" />
     </Screen>
   );
 }
