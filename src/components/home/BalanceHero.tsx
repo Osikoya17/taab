@@ -63,9 +63,12 @@ export function BalanceHero({ overview, selectedCurrency, onSelectCurrency, rate
   return (
     <View>
       <View className="flex-row items-center justify-between gap-3">
-        <Text variant="label" tone="muted">
-          Your balance
-        </Text>
+        <View className="flex-row items-center gap-2">
+          <View className="h-2 w-2 rounded-full bg-brand-cyan" />
+          <Text variant="label" tone="muted">
+            Your balance
+          </Text>
+        </View>
         <CurrencySwitcher selected={selectedCurrency} onSelect={onSelectCurrency} />
       </View>
       <View className="mt-1.5">

@@ -20,6 +20,20 @@ const light = {
   accent: '#C9A15B',
   accentSoft: '#F4ECDD',
   overlay: 'rgba(17,17,17,0.32)',
+  // Brand colours (October 2026), added alongside the colours above. Fills
+  // take brandInk on cyan and yellow, brandPaper on blue, red and green.
+  brandCyan: '#4ED2D4',
+  brandBlue: '#1859C3',
+  brandYellow: '#F4E04D',
+  brandRed: '#FF4242',
+  brandGreen: '#029950',
+  brandInk: '#0F0F0C',
+  brandPaper: '#FFFEFA',
+  brandCyanSoft: '#D8F4F4',
+  brandBlueSoft: '#DCE6F7',
+  brandYellowSoft: '#FBF5CC',
+  brandRedSoft: '#FFE0E0',
+  brandGreenSoft: '#D5EFE2',
 };
 
 /**
@@ -43,6 +57,18 @@ const dark = {
   accent: '#D4AF6A',
   accentSoft: '#2E2719',
   overlay: 'rgba(0,0,0,0.6)',
+  brandCyan: '#4ED2D4',
+  brandBlue: '#1859C3',
+  brandYellow: '#F4E04D',
+  brandRed: '#FF4242',
+  brandGreen: '#029950',
+  brandInk: '#0F0F0C',
+  brandPaper: '#FFFEFA',
+  brandCyanSoft: '#143536',
+  brandBlueSoft: '#172440',
+  brandYellowSoft: '#34301A',
+  brandRedSoft: '#3D1D1D',
+  brandGreenSoft: '#12301F',
 };
 
 module.exports = { light, dark };

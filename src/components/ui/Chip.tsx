@@ -1,6 +1,7 @@
 import { Lock, type LucideIcon } from 'lucide-react-native';
+import { View } from 'react-native';
 
-import { useColors } from '@/constants/theme';
+import { useColors, type Palette } from '@/constants/theme';
 import { cx } from '@/utils/cx';
 
 import { PressableScale } from './PressableScale';
@@ -12,10 +13,12 @@ export type ChipProps = {
   onPress?: () => void;
   icon?: LucideIcon;
   locked?: boolean;
+  /** Shows the icon in a small circle of this colour (a palette fill and the colour on top). */
+  iconColour?: { fill: keyof Palette; on: keyof Palette };
 };
 
 /** Selectable pill for filters and small choices. */
-export function Chip({ label, selected = false, onPress, icon: Icon, locked }: ChipProps) {
+export function Chip({ label, selected = false, onPress, icon: Icon, locked, iconColour }: ChipProps) {
   const colors = useColors();
   return (
     <PressableScale
@@ -28,7 +31,13 @@ export function Chip({ label, selected = false, onPress, icon: Icon, locked }: C
         'h-10 flex-row items-center gap-1.5 rounded-full border px-4',
         selected ? 'border-ink bg-ink' : 'border-line bg-surface',
       )}>
-      {Icon ? <Icon size={15} color={selected ? colors.canvas : colors.ink} strokeWidth={2} /> : null}
+      {Icon && iconColour ? (
+        <View className="-ml-2 h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: colors[iconColour.fill] }}>
+          <Icon size={13} color={colors[iconColour.on]} strokeWidth={2.2} />
+        </View>
+      ) : Icon ? (
+        <Icon size={15} color={selected ? colors.canvas : colors.ink} strokeWidth={2} />
+      ) : null}
       <Text variant="label" tone={selected ? 'inverse' : 'ink'}>
         {label}
       </Text>

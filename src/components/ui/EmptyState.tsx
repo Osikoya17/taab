@@ -28,7 +28,7 @@ function Illustration({ kind }: { kind: EmptyIllustration }) {
           </View>
           <View className="w-full flex-row justify-between">
             {[0, 1, 2].map((i) => (
-              <View key={i} className="h-3 w-3 rounded-full" style={{ backgroundColor: i === 0 ? colors.ink : colors.lineStrong }} />
+              <View key={i} className="h-3 w-3 rounded-full" style={{ backgroundColor: i === 0 ? colors.brandCyan : colors.lineStrong }} />
             ))}
           </View>
         </View>
@@ -39,7 +39,7 @@ function Illustration({ kind }: { kind: EmptyIllustration }) {
           <View className="absolute top-0 h-12 w-20 rounded-2xl border border-line bg-sunken" />
           <View className="absolute top-3 h-12 w-24 rounded-2xl border border-line bg-canvas" />
           <View className="h-14 w-28 justify-center gap-1.5 rounded-2xl border border-line bg-surface px-3">
-            <View className="h-1.5 w-12 rounded-full bg-line-strong" />
+            <View className="h-1.5 w-12 rounded-full bg-brand-yellow" />
             <View className="h-1.5 w-8 rounded-full bg-sunken" />
           </View>
         </View>
@@ -49,7 +49,7 @@ function Illustration({ kind }: { kind: EmptyIllustration }) {
         <View className="h-24 w-28 justify-center gap-3">
           {[0.9, 0.6, 0.75].map((w, i) => (
             <View key={i} className="flex-row items-center gap-2">
-              <View className="h-5 w-5 rounded-full" style={{ backgroundColor: i === 0 ? colors.lineStrong : colors.sunken }} />
+              <View className="h-5 w-5 rounded-full" style={{ backgroundColor: i === 0 ? colors.brandBlue : colors.sunken }} />
               <View className="h-1.5 rounded-full bg-sunken" style={{ width: `${w * 70}%` }} />
             </View>
           ))}
@@ -59,7 +59,7 @@ function Illustration({ kind }: { kind: EmptyIllustration }) {
       return (
         <View className="h-24 w-24 items-center justify-center">
           <View className="h-16 w-16 items-center justify-center rounded-full border border-line bg-surface">
-            <View className="h-2 w-2 rounded-full bg-line-strong" />
+            <View className="h-2.5 w-2.5 rounded-full bg-brand-red" />
           </View>
         </View>
       );

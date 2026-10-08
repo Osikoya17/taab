@@ -1,21 +1,14 @@
 import { Image } from 'expo-image';
 import { Text as RNText, View } from 'react-native';
-import { useColorScheme } from 'nativewind';
+import { fonts, useColors, type Palette } from '@/constants/theme';
 
-import { fonts, useColors } from '@/constants/theme';
+/** Soft tints of the brand colours: colourful, but never the loudest thing on screen. */
+const TINT_KEYS = ['brandCyanSoft', 'brandBlueSoft', 'brandYellowSoft', 'brandRedSoft', 'brandGreenSoft'] as const;
 
-/** Quiet, warm tints — avatars should never be the loudest thing on screen. */
-const TINTS = {
-  light: ['#ECE6DA', '#DFE7E1', '#E5E2EC', '#EFE2DC', '#DEE4EA', '#E9E7DC', '#E3E9E4'],
-  // The same hues, dimmed to sit on a dark page.
-  dark: ['#302B22', '#23302A', '#2B2934', '#35271F', '#242B32', '#2E2C22', '#26302A'],
-};
-
-function tintFor(seed: string, scheme: 'light' | 'dark') {
+function tintFor(seed: string, palette: Palette) {
   let hash = 0;
   for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  const tints = TINTS[scheme];
-  return tints[hash % tints.length];
+  return palette[TINT_KEYS[hash % TINT_KEYS.length]];
 }
 
 export function initials(name: string) {
@@ -37,7 +30,6 @@ export type AvatarProps = {
 
 export function Avatar({ name, uri, size = 40, seed, ring = false, dimmed = false }: AvatarProps) {
   const colors = useColors();
-  const { colorScheme } = useColorScheme();
   const borderWidth = ring ? 2 : 0;
   return (
     <View
@@ -46,7 +38,7 @@ export function Avatar({ name, uri, size = 40, seed, ring = false, dimmed = fals
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: tintFor(seed ?? name, colorScheme === 'dark' ? 'dark' : 'light'),
+        backgroundColor: tintFor(seed ?? name, colors),
         borderWidth,
         borderColor: colors.canvas,
         opacity: dimmed ? 0.55 : 1,

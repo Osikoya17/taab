@@ -1,80 +1,97 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+import { StyleSheet, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import Svg, { G, Path } from 'react-native-svg';
 
-import { fonts, useColors } from '@/constants/theme';
+import { LOGO_FULL, LOGO_SPLIT } from '@/components/brand/logo-paths';
+import { useColors } from '@/constants/theme';
 
-const SIZES = {
-  small: { fontSize: 22, letterSpacing: -0.9 },
-  medium: { fontSize: 34, letterSpacing: -1.4 },
-  large: { fontSize: 64, letterSpacing: -2.8 },
-} as const;
+/** Height of the wordmark in points; the width follows the logo's proportions. */
+const SIZES = { small: 22, medium: 32, large: 65 } as const;
+
+/*
+ * Lining the two drawings up, in the full logo's units: "ab" slides left by
+ * SLIDE to make the split state, and the pair is shifted right by CENTRE so
+ * "tab" sits in the middle. The split drawing is scaled by SPLIT_SCALE (to
+ * match the height of the "t") and moved by SPLIT_DX/SPLIT_DY to land on it.
+ * Fitted by comparing renders: the two overlap by about 91%, the rest being
+ * the designer's fractured "a", which the short cross-fade covers.
+ */
+const SLIDE = 170.94;
+const CENTRE = 85.5;
+const SPLIT_SCALE = 0.9689;
+const SPLIT_DX = CENTRE;
+const SPLIT_DY = -0.359;
 
 export type TaabLogoProps = {
   size?: keyof typeof SIZES;
   color?: string;
   /**
-   * Plays the "split the tab" motion once: the letters part by a few pixels
-   * around the double-a and come back together (under a second).
+   * Plays the opening motion once: the logo starts as "tab", the way it looks
+   * on the app icon, and "ab" slides out to reveal "taab" (under a second).
    */
   animateSplit?: boolean;
   onSplitComplete?: () => void;
 };
 
-/**
- * The taab wordmark. Rendered as text for now and isolated here so the final
- * custom SVG (with the fractured "a") can replace it without touching screens.
- */
+/** The taab wordmark, drawn from the designer's logo. */
 export function TaabLogo({ size = 'medium', color: colorProp, animateSplit = false, onSplitComplete }: TaabLogoProps) {
   const colors = useColors();
   const color = colorProp ?? colors.ink;
-  const { fontSize, letterSpacing } = SIZES[size];
-  const gap = useSharedValue(0);
+  const height = SIZES[size];
+  const unit = height / LOGO_FULL.height;
+  const width = LOGO_FULL.width * unit;
+
+  // 0 = split ("tab"), 1 = full ("taab").
+  const progress = useSharedValue(animateSplit ? 0 : 1);
+  // 1 while the split drawing is showing, before the letters start to move.
+  const splitVisible = useSharedValue(animateSplit ? 1 : 0);
 
   useEffect(() => {
     if (!animateSplit) return;
-    const offset = Math.max(2, fontSize * 0.06);
-    gap.set(
-      withDelay(
-        120,
-        withSequence(
-          withTiming(offset, { duration: 280, easing: Easing.out(Easing.cubic) }),
-          withTiming(0, { duration: 320, easing: Easing.inOut(Easing.cubic) }),
-        ),
-      ),
-    );
-    // Matches the animation length (120 + 280 + 320ms) plus a short hold.
+    splitVisible.set(withDelay(120, withTiming(0, { duration: 120 })));
+    progress.set(withDelay(200, withTiming(1, { duration: 440, easing: Easing.out(Easing.cubic) })));
+    // Matches the motion (200 + 440ms) plus a short hold on "taab".
     const timer = setTimeout(() => onSplitComplete?.(), 820);
     return () => clearTimeout(timer);
-  }, [animateSplit, fontSize, gap, onSplitComplete]);
+  }, [animateSplit, onSplitComplete, progress, splitVisible]);
 
-  const leftStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -gap.get() }] }));
-  const rightStyle = useAnimatedStyle(() => ({ transform: [{ translateX: gap.get() }] }));
+  const leftStyle = useAnimatedStyle(() => ({
+    opacity: 1 - splitVisible.get(),
+    transform: [{ translateX: (1 - progress.get()) * CENTRE * unit }],
+  }));
+  const rightStyle = useAnimatedStyle(() => ({
+    opacity: 1 - splitVisible.get(),
+    transform: [{ translateX: (1 - progress.get()) * (CENTRE - SLIDE) * unit }],
+  }));
+  const splitStyle = useAnimatedStyle(() => ({ opacity: splitVisible.get() }));
 
-  const textStyle = {
-    fontFamily: fonts.bold,
-    fontSize,
-    lineHeight: fontSize * 1.1,
-    letterSpacing,
-    color,
-    includeFontPadding: false,
-  } as const;
-
+  const viewBox = `0 0 ${LOGO_FULL.width} ${LOGO_FULL.height}`;
   return (
-    <View accessible accessibilityRole="header" accessibilityLabel="taab" className="flex-row">
-      <Animated.Text style={[textStyle, leftStyle]} allowFontScaling={false}>
-        ta
-      </Animated.Text>
-      <Animated.Text style={[textStyle, rightStyle]} allowFontScaling={false}>
-        ab
-      </Animated.Text>
+    <View accessible accessibilityRole="header" accessibilityLabel="taab" style={{ width, height }}>
+      <Animated.View style={[StyleSheet.absoluteFill, leftStyle]}>
+        <Svg width={width} height={height} viewBox={viewBox}>
+          <Path d={LOGO_FULL.t} fill={color} fillRule="evenodd" />
+          <Path d={LOGO_FULL.firstA} fill={color} fillRule="evenodd" />
+        </Svg>
+      </Animated.View>
+      <Animated.View style={[StyleSheet.absoluteFill, rightStyle]}>
+        <Svg width={width} height={height} viewBox={viewBox}>
+          <Path d={LOGO_FULL.secondA} fill={color} fillRule="evenodd" />
+          <Path d={LOGO_FULL.b} fill={color} fillRule="evenodd" />
+        </Svg>
+      </Animated.View>
+      {animateSplit ? (
+        <Animated.View style={[StyleSheet.absoluteFill, splitStyle]}>
+          <Svg width={width} height={height} viewBox={viewBox}>
+            <G transform={`translate(${SPLIT_DX} ${SPLIT_DY}) scale(${SPLIT_SCALE})`}>
+              <Path d={LOGO_SPLIT.t} fill={color} fillRule="evenodd" />
+              <Path d={LOGO_SPLIT.a} fill={color} fillRule="evenodd" />
+              <Path d={LOGO_SPLIT.b} fill={color} fillRule="evenodd" />
+            </G>
+          </Svg>
+        </Animated.View>
+      ) : null}
     </View>
   );
 }

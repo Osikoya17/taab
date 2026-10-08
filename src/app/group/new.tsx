@@ -123,7 +123,7 @@ export default function CreateGroupScreen() {
             render={({ field }) => (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-5" contentContainerClassName="gap-2 px-5">
                 {GROUP_TYPES.map((t) => (
-                  <Chip key={t.value} label={t.label} icon={t.icon} selected={field.value === t.value} onPress={() => field.onChange(t.value)} />
+                  <Chip key={t.value} label={t.label} icon={t.icon} iconColour={t.colour} selected={field.value === t.value} onPress={() => field.onChange(t.value)} />
                 ))}
               </ScrollView>
             )}

@@ -14,6 +14,18 @@ export type Palette = {
   accent: string;
   accentSoft: string;
   overlay: string;
+  brandCyan: string;
+  brandBlue: string;
+  brandYellow: string;
+  brandRed: string;
+  brandGreen: string;
+  brandInk: string;
+  brandPaper: string;
+  brandCyanSoft: string;
+  brandBlueSoft: string;
+  brandYellowSoft: string;
+  brandRedSoft: string;
+  brandGreenSoft: string;
 };
 
 declare const palettes: { light: Palette; dark: Palette };

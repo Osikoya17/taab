@@ -17,6 +17,11 @@ const TOKENS = {
   'negative-soft': 'negativeSoft',
   accent: 'accent',
   'accent-soft': 'accentSoft',
+  'brand-cyan': 'brandCyan',
+  'brand-blue': 'brandBlue',
+  'brand-yellow': 'brandYellow',
+  'brand-red': 'brandRed',
+  'brand-green': 'brandGreen',
 };
 
 /** '#F7F7F5' → '247 247 245', the channel form `rgb(var(--x) / <alpha>)` needs. */
