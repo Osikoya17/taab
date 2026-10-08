@@ -255,8 +255,8 @@ export function SettledIllustration({ active }: { active: boolean }) {
                 </Text>
               </View>
             </View>
-            <View className="mt-4 h-11 items-center justify-center rounded-[16px] bg-ink">
-              <Text variant="label" tone="inverse">
+            <View className="mt-4 h-11 items-center justify-center rounded-[16px] bg-brand-cyan">
+              <Text variant="label" tone="onBrand">
                 Record payment
               </Text>
             </View>

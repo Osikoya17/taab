@@ -22,6 +22,7 @@ const TOKENS = {
   'brand-yellow': 'brandYellow',
   'brand-red': 'brandRed',
   'brand-green': 'brandGreen',
+  'brand-ink': 'brandInk',
 };
 
 /** '#F7F7F5' → '247 247 245', the channel form `rgb(var(--x) / <alpha>)` needs. */

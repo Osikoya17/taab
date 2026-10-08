@@ -138,12 +138,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               width: 46,
               height: 46,
               borderRadius: 18,
-              backgroundColor: colors.ink,
+              backgroundColor: colors.brandCyan,
               alignItems: 'center',
               justifyContent: 'center',
               transform: [{ scale: pressed ? 0.94 : 1 }],
             }}>
-            <Plus size={22} color={colors.canvas} strokeWidth={2.2} />
+            <Plus size={22} color={colors.brandInk} strokeWidth={2.2} />
           </View>
         </TourTarget>
       )}

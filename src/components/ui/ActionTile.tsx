@@ -26,8 +26,8 @@ export function ActionTile({
   const colors = useColors();
   return (
     <PressableScale onPress={onPress} accessibilityLabel={accessibilityLabel ?? label} pressedScale={0.95} className="flex-1 items-center gap-1.5">
-      <View className={cx('h-14 w-full items-center justify-center rounded-[20px]', primary ? 'bg-ink' : 'border border-line bg-surface')}>
-        <Icon size={20} color={primary ? colors.canvas : colors.ink} strokeWidth={1.9} />
+      <View className={cx('h-14 w-full items-center justify-center rounded-[20px]', primary ? 'bg-brand-cyan' : 'border border-line bg-surface')}>
+        <Icon size={20} color={primary ? colors.brandInk : colors.ink} strokeWidth={1.9} />
       </View>
       <Text variant="caption" numberOfLines={1}>
         {label}

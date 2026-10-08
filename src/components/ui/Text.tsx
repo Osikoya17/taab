@@ -21,6 +21,8 @@ const TONES = {
   positive: 'text-positive',
   negative: 'text-negative',
   inverse: 'text-canvas',
+  /** On brand cyan or yellow, in both themes. */
+  onBrand: 'text-brand-ink',
 } as const;
 
 export type TextVariant = keyof typeof VARIANTS;

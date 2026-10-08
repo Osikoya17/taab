@@ -23,14 +23,14 @@ export type ButtonProps = {
 };
 
 const CONTAINER: Record<ButtonVariant, string> = {
-  primary: 'bg-ink',
+  primary: 'bg-brand-cyan',
   secondary: 'bg-surface border border-line',
   ghost: 'bg-transparent',
   danger: 'bg-negative-soft',
 };
 
-const LABEL_TONE = { primary: 'inverse', secondary: 'ink', ghost: 'ink', danger: 'negative' } as const;
-const ICON_COLOR = { primary: 'canvas', secondary: 'ink', ghost: 'ink', danger: 'negative' } as const satisfies Record<ButtonVariant, keyof Palette>;
+const LABEL_TONE = { primary: 'onBrand', secondary: 'ink', ghost: 'ink', danger: 'negative' } as const;
+const ICON_COLOR = { primary: 'brandInk', secondary: 'ink', ghost: 'ink', danger: 'negative' } as const satisfies Record<ButtonVariant, keyof Palette>;
 
 export function Button({
   label,
