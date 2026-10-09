@@ -21,6 +21,12 @@
         "EXPO_PUBLIC_API_URL": "",
         "EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN": ""
       }
+    },
+    {
+      "name": "taab-website",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../taab-website", "run", "dev", "--", "--port", "4321"],
+      "port": 4321
     }
   ]
 }
